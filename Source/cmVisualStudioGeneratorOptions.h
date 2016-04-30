@@ -56,6 +56,7 @@ public:
   void SetVerboseMakefile(bool verbose);
 
   // Check for specific options.
+  bool UsingAnalysis() const; //aaye: Added analysis flag for projects
   bool UsingUnicode() const;
   bool UsingSBCS() const;
 

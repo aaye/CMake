@@ -148,6 +148,21 @@ bool cmVisualStudioGeneratorOptions::IsWinRt() const
 }
 
 //----------------------------------------------------------------------------
+//aaye: Added analysis flag for projects
+bool cmVisualStudioGeneratorOptions::UsingAnalysis() const
+{
+    // Look for the a _UNICODE definition.
+    for (std::vector<std::string>::const_iterator di = this->Defines.begin();
+    di != this->Defines.end(); ++di)
+    {
+        if (*di == "_ANALYSIS")
+        {
+            return true;
+        }
+    }
+    return false;
+}
+//----------------------------------------------------------------------------
 bool cmVisualStudioGeneratorOptions::UsingUnicode() const
 {
   // Look for the a _UNICODE definition.
