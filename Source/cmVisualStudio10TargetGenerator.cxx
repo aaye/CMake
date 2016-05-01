@@ -755,7 +755,19 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues()
       }
 
     this->WriteString("</PropertyGroup>\n", 1);
+    this->WriteProjectConfigurationAnalysisValues(*i); //aaye: Added analysis flag for projects
     }
+}
+
+//aaye: Added analysis flag for projects
+void cmVisualStudio10TargetGenerator::WriteProjectConfigurationAnalysisValues( std::string const& config )
+{
+    if (this->ClOptions.empty() || !this->ClOptions[config] || !this->ClOptions[config]->UsingAnalysis())
+        return;
+
+    this->WriteString( "<PropertyGroup>\n", 1 );
+    this->WriteString( "<RunCodeAnalysis>true</RunCodeAnalysis>\n", 2 );
+    this->WriteString( "</PropertyGroup>\n", 1 );
 }
 
 //----------------------------------------------------------------------------
@@ -816,6 +828,45 @@ void cmVisualStudio10TargetGenerator
     this->WriteString("<WindowsAppContainer>true"
                       "</WindowsAppContainer>\n", 2);
     }
+
+    //aaye: Added the ability to toggle the global whole program optimization flag
+    std::string ltcgGlobal = "LTCG_GLOBAL_OPT_";
+    ltcgGlobal += cmSystemTools::UpperCase(config);
+
+    if (this->GeneratorTarget->GetPropertyAsBool( ltcgGlobal.c_str() ))
+      {
+      this->WriteString("<WholeProgramOptimization>true</WholeProgramOptimization>\n", 2);
+      }
+    else
+      {
+      this->WriteString("<WholeProgramOptimization>false</WholeProgramOptimization>\n", 2);
+      }
+
+    //aaye: Added the ability to toggle debug libraries
+    std::string debubLib = "USE_DEBUG_LIB_";
+    debubLib += cmSystemTools::UpperCase(config);
+
+    if (this->GeneratorTarget->GetPropertyAsBool( debubLib.c_str() ))
+      {
+      this->WriteString("<UseDebugLibraries>true</UseDebugLibraries>\n", 2);
+      }
+    else
+      {
+      this->WriteString("<UseDebugLibraries>false</UseDebugLibraries>\n", 2);
+      }
+
+    //aaye: Added the ability to toggle dot net native
+    std::string netNative = "USE_DOT_NET_NATIVE_";
+    netNative += cmSystemTools::UpperCase(config);
+
+    if (this->GeneratorTarget->GetPropertyAsBool( netNative.c_str() ))
+      {
+      this->WriteString("<UseDotNetNativeToolchain>true</UseDotNetNativeToolchain>\n", 2);
+      }
+    else
+      {
+      this->WriteString("<UseDotNetNativeToolchain>false</UseDotNetNativeToolchain>\n", 2);
+      }
 }
 
 //----------------------------------------------------------------------------
@@ -1679,10 +1730,12 @@ bool cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
   if(const char* cflags = sf.GetProperty("COMPILE_FLAGS"))
     {
     flags += cflags;
+    flags += " "; //aaye: need a space when merging flags
     }
   if(const char* cdefs = sf.GetProperty("COMPILE_DEFINITIONS"))
     {
     defines += cdefs;
+    defines += " "; //aaye: need a space when merging flags
     }
   std::string lang =
     this->GlobalGenerator->GetLanguageFromExtension
@@ -1731,6 +1784,61 @@ bool cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
       config != this->Configurations.end(); ++config)
     {
     std::string configUpper = cmSystemTools::UpperCase(*config);
+
+    //aaye: Force the compiler flags for the source language type
+    cmVisualStudioGeneratorOptions
+      clOptions(this->LocalGenerator,
+                cmVisualStudioGeneratorOptions::Compiler,
+                this->GetClFlagTable(), 0, this);
+
+    if (needForceLang || (linkLanguage != lang))
+      {
+      std::string linkLangFlags;
+      cmVisualStudioGeneratorOptions
+        linkLangOptions(this->LocalGenerator,
+                  cmVisualStudioGeneratorOptions::Compiler,
+                  this->GetClFlagTable(), 0, this);
+      this->LocalGenerator->AddLanguageFlags( linkLangFlags, linkLanguage, configUpper );
+      linkLangOptions.Parse( linkLangFlags.c_str() );
+
+      std::string sourceLangFlags;
+      cmVisualStudioGeneratorOptions
+        sourceLangOptions(this->LocalGenerator,
+                  cmVisualStudioGeneratorOptions::Compiler,
+                  this->GetClFlagTable(), 0, this);
+      this->LocalGenerator->AddLanguageFlags( sourceLangFlags, lang, configUpper );
+      std::string langTargetCompileFlags = std::string( "COMPILE_" ) + lang + "_FLAGS";
+      if (const char* cflags = this->GeneratorTarget->GetProperty( langTargetCompileFlags ))
+      {
+          sourceLangFlags = std::string( cflags ) + " " + sourceLangFlags + " ";
+      }
+      sourceLangOptions.Parse( sourceLangFlags.c_str() );
+
+      for (cmIDEFlagTable const* entry = this->GetClFlagTable(); entry->IDEName; ++entry)
+        {
+        if (linkLangOptions.HasFlag( entry->IDEName ) && linkLangOptions.GetFlag( entry->IDEName ))
+          {
+          if (sourceLangOptions.HasFlag( entry->IDEName ) && sourceLangOptions.GetFlag( entry->IDEName ))
+            {
+            if (0 != stricmp( linkLangOptions.GetFlag( entry->IDEName ), sourceLangOptions.GetFlag( entry->IDEName ) ))
+              {
+              clOptions.AddFlag( entry->IDEName, sourceLangOptions.GetFlag( entry->IDEName ) );
+              hasFlags = true;
+              }
+            }
+          }
+        else
+          {
+          if (sourceLangOptions.HasFlag( entry->IDEName ) && sourceLangOptions.GetFlag( entry->IDEName ))
+            {
+            clOptions.AddFlag( entry->IDEName, sourceLangOptions.GetFlag( entry->IDEName ) );
+            hasFlags = true;
+            }
+          }
+        }
+      }
+    //aaye: Force the compiler flags for the source language type
+
     std::string configDefines = defines;
     std::string defPropName = "COMPILE_DEFINITIONS_";
     defPropName += configUpper;
@@ -1749,10 +1857,6 @@ bool cmVisualStudio10TargetGenerator::OutputSourceSpecificFlags(
       (*this->BuildFileStream ) << firstString;
       firstString = ""; // only do firstString once
       hasFlags = true;
-      cmVisualStudioGeneratorOptions
-        clOptions(this->LocalGenerator,
-                  cmVisualStudioGeneratorOptions::Compiler,
-                  this->GetClFlagTable(), 0, this);
       if(compileAs)
         {
         clOptions.AddFlag("CompileAs", compileAs);
@@ -1819,11 +1923,20 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions()
       }
     else
       {
-      std::string intermediateDir = this->LocalGenerator->
-        GetTargetDirectory(this->GeneratorTarget);
+      //aaye: added the ability to set the output directory
+      const char* outputDir =
+        this->GeneratorTarget->GetProperty("OBJECT_OUTPUT_DIRECTORY");
+      std::string intermediateDir = NULL != outputDir ? outputDir : this->LocalGenerator->
+        GetTargetDirectory(this->GeneratorTarget );
+      intermediateDir = cmSystemTools::CollapseFullPath(intermediateDir.c_str());
       intermediateDir += "/";
       intermediateDir += *config;
       intermediateDir += "/";
+
+      //aaye: added the target name to the intermediate directory
+      intermediateDir += this->GeneratorTarget->GetName();
+      intermediateDir += "/";
+
       std::string outDir;
       std::string targetNameFull;
       if(ttype == cmState::OBJECT_LIBRARY)
@@ -3065,8 +3178,15 @@ void cmVisualStudio10TargetGenerator::WriteSDKReferences()
     const char* iotExtensionsVersion =
       this->GeneratorTarget->GetProperty("VS_IOT_EXTENSIONS_VERSION");
 
+    //aaye: added ability to add in the unit test extensions
+    const char* cppUnitTestFrameworkVersion =
+        this->GeneratorTarget->GetProperty( "VS_CPPUNITTESTFRAMEWORK_EXTENSIONS_VERSION" );
+    const char* testPlatformVersion =
+        this->GeneratorTarget->GetProperty( "VS_TESTPLATFORM_EXTENSIONS_VERSION" );
+
     if(desktopExtensionsVersion || mobileExtensionsVersion ||
-       iotExtensionsVersion)
+       iotExtensionsVersion || cppUnitTestFrameworkVersion ||
+       testPlatformVersion)
       {
       this->WriteString("<ItemGroup>\n", 1);
       if(desktopExtensionsVersion)
@@ -3083,6 +3203,16 @@ void cmVisualStudio10TargetGenerator::WriteSDKReferences()
         {
         this->WriteSingleSDKReference("WindowsIoT",
                                       iotExtensionsVersion);
+        }
+      if(cppUnitTestFrameworkVersion)
+        {
+        this->WriteSingleSDKReference("CppUnitTestFramework.Universal",
+                                       cppUnitTestFrameworkVersion );
+        }
+      if(testPlatformVersion)
+        {
+        this->WriteSingleSDKReference("TestPlatform.Universal",
+                                       testPlatformVersion );
         }
       this->WriteString("</ItemGroup>\n", 1);
       }
@@ -3129,8 +3259,9 @@ void cmVisualStudio10TargetGenerator::WriteWinRTPackageCertificateKeyFile()
       this->WriteString("<AppxPackageArtifactsDir>", 2);
       (*this->BuildFileStream) << cmVS10EscapeXML(artifactDir) <<
         "\\</AppxPackageArtifactsDir>\n";
+      //aaye: Correction to put file in the correct directory
       this->WriteString("<ProjectPriFullPath>"
-        "$(TargetDir)resources.pri</ProjectPriFullPath>\n", 2);
+        "$(ProjectDir)resources.pri</ProjectPriFullPath>\n", 2);
 
       // If we are missing files and we don't have a certificate and
       // aren't targeting WP8.0, add a default certificate
@@ -3561,7 +3692,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWP81()
     "\t</Applications>\n"
     "</Package>\n";
 
-  this->WriteCommonMissingFiles(manifestFile);
+  std::vector< std::string > imageList;
+  this->WriteCommonMissingFiles( manifestFile, imageList );
 }
 
 void cmVisualStudio10TargetGenerator::WriteMissingFilesWS80()
@@ -3614,7 +3746,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS80()
     "\t</Applications>\n"
     "</Package>\n";
 
-  this->WriteCommonMissingFiles(manifestFile);
+  std::vector< std::string > imageList;
+  this->WriteCommonMissingFiles( manifestFile, imageList );
 }
 
 void cmVisualStudio10TargetGenerator::WriteMissingFilesWS81()
@@ -3672,7 +3805,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS81()
     "\t</Applications>\n"
     "</Package>\n";
 
-  this->WriteCommonMissingFiles(manifestFile);
+  std::vector< std::string > imageList;
+  this->WriteCommonMissingFiles( manifestFile, imageList );
 }
 
 void cmVisualStudio10TargetGenerator::WriteMissingFilesWS10_0()
@@ -3685,6 +3819,10 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS10_0()
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string targetNameXML =
       cmVS10EscapeXML(this->GeneratorTarget->GetName());
+
+  //aaye support arbitrary application id
+  const char *applicationID = this->GeneratorTarget->GetProperty( "UWP_APPLICATION_ID" );
+  std::string applicationIDXML = cmVS10EscapeXML( applicationID ? applicationID : "App" );
 
   cmGeneratedFileStream fout(manifestFile.c_str());
   fout.SetCopyIfDifferent(true);
@@ -3714,29 +3852,39 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS10_0()
     "\t\t<Resource Language=\"x-generate\" />\n"
     "\t</Resources>\n"
     "\t<Applications>\n"
-    "\t\t<Application Id=\"App\""
+    "\t\t<Application Id=\"" << applicationIDXML << "\""
     " Executable=\"" << targetNameXML << ".exe\""
     " EntryPoint=\"" << targetNameXML << ".App\">\n"
     "\t\t\t<uap:VisualElements\n"
     "\t\t\t\tDisplayName=\"" << targetNameXML << "\"\n"
+    "\t\t\t\tSquare150x150Logo=\"" << artifactDirXML << "\\Square150x150Logo.png\"\n"
+    "\t\t\t\tSquare44x44Logo=\"" << artifactDirXML << "\\Square44x44Logo.png\"\n"
     "\t\t\t\tDescription=\"" << targetNameXML << "\"\n"
-    "\t\t\t\tBackgroundColor=\"#336699\"\n"
-    "\t\t\t\tSquare150x150Logo=\"" << artifactDirXML << "\\Logo.png\"\n"
-    "\t\t\t\tSquare44x44Logo=\"" << artifactDirXML <<
-    "\\SmallLogo44x44.png\">\n"
-    "\t\t\t\t<uap:SplashScreen"
-    " Image=\"" << artifactDirXML << "\\SplashScreen.png\" />\n"
+    "\t\t\t\tBackgroundColor=\"#336699\">\n"
+    "\t\t\t\t<uap:DefaultTile Wide310x150Logo=\"" << artifactDirXML << "\\Wide310x150Logo.png\" />\n"
+    "\t\t\t\t<uap:SplashScreen Image=\"" << artifactDirXML << "\\SplashScreen.png\" />\n"
     "\t\t\t</uap:VisualElements>\n"
     "\t\t</Application>\n"
     "\t</Applications>\n"
     "</Package>\n";
 
-  this->WriteCommonMissingFiles(manifestFile);
+//aaye resource list from visual studio 2015 generated projects
+  std::vector< std::string > imageList;
+  imageList.push_back( std::string( "LockScreenLogo.scale-200.png" ) );
+  imageList.push_back( std::string( "Square44x44Logo.targetsize-24_altform-unplated.png" ) );
+  imageList.push_back( std::string( "Square44x44Logo.scale-200.png" ) );
+  imageList.push_back( std::string( "Square150x150Logo.scale-200.png" ) );
+  imageList.push_back( std::string( "StoreLogo.png" ) );
+  imageList.push_back( std::string( "SplashScreen.scale-200.png" ) );
+  imageList.push_back( std::string( "Wide310x150Logo.scale-200.png" ) );
+  WriteCommonMissingFiles(manifestFile, imageList);
 }
 
+//aaye modified to take the image list from calling function
 void
 cmVisualStudio10TargetGenerator
-::WriteCommonMissingFiles(const std::string& manifestFile)
+::WriteCommonMissingFiles(const std::string& manifestFile,
+                          std::vector< std::string >& imageList )
 {
   std::string templateFolder = cmSystemTools::GetCMakeRoot() +
                                "/Templates/Windows";
@@ -3749,45 +3897,26 @@ cmVisualStudio10TargetGenerator
   this->WriteString("</AppxManifest>\n", 2);
   this->AddedFiles.push_back(sourceFile);
 
-  std::string smallLogo = this->DefaultArtifactDir + "/SmallLogo.png";
-  cmSystemTools::CopyAFile(templateFolder + "/SmallLogo.png",
-                           smallLogo, false);
-  this->ConvertToWindowsSlash(smallLogo);
-  this->WriteString("<Image Include=\"", 2);
-  (*this->BuildFileStream) << cmVS10EscapeXML(smallLogo) << "\" />\n";
-  this->AddedFiles.push_back(smallLogo);
+  if (imageList.empty())
+    {
+    imageList.push_back( std::string( "SmallLogo.png" ) );
+    imageList.push_back( std::string( "SmallLogo44x44.png" ) );
+    imageList.push_back( std::string( "Logo.png" ) );
+    imageList.push_back( std::string( "StoreLogo.png" ) );
+    imageList.push_back( std::string( "SplashScreen.png" ) );
+    }
 
-  std::string smallLogo44 = this->DefaultArtifactDir + "/SmallLogo44x44.png";
-  cmSystemTools::CopyAFile(templateFolder + "/SmallLogo44x44.png",
-                           smallLogo44, false);
-  this->ConvertToWindowsSlash(smallLogo44);
-  this->WriteString("<Image Include=\"", 2);
-  (*this->BuildFileStream) << cmVS10EscapeXML(smallLogo44) << "\" />\n";
-  this->AddedFiles.push_back(smallLogo44);
-
-  std::string logo = this->DefaultArtifactDir + "/Logo.png";
-  cmSystemTools::CopyAFile(templateFolder + "/Logo.png",
-                           logo, false);
-  this->ConvertToWindowsSlash(logo);
-  this->WriteString("<Image Include=\"", 2);
-  (*this->BuildFileStream) << cmVS10EscapeXML(logo) << "\" />\n";
-  this->AddedFiles.push_back(logo);
-
-  std::string storeLogo = this->DefaultArtifactDir + "/StoreLogo.png";
-  cmSystemTools::CopyAFile(templateFolder + "/StoreLogo.png",
-                           storeLogo, false);
-  this->ConvertToWindowsSlash(storeLogo);
-  this->WriteString("<Image Include=\"", 2);
-  (*this->BuildFileStream) << cmVS10EscapeXML(storeLogo) << "\" />\n";
-  this->AddedFiles.push_back(storeLogo);
-
-  std::string splashScreen = this->DefaultArtifactDir + "/SplashScreen.png";
-  cmSystemTools::CopyAFile(templateFolder + "/SplashScreen.png",
-                           splashScreen, false);
-  this->ConvertToWindowsSlash(splashScreen);
-  this->WriteString("<Image Include=\"", 2);
-  (*this->BuildFileStream) << cmVS10EscapeXML(splashScreen) << "\" />\n";
-  this->AddedFiles.push_back(splashScreen);
+  while (!imageList.empty())
+    {
+    std::string imageName = imageList.back();
+    imageList.pop_back();
+    std::string imageArtifact = this->DefaultArtifactDir + "/" + imageName;
+    cmSystemTools::CopyAFile( templateFolder + "/" + imageName, imageArtifact, false );
+    this->ConvertToWindowsSlash( imageArtifact );
+    this->WriteString( "<Image Include=\"", 2 );
+    (*this->BuildFileStream) << cmVS10EscapeXML( imageArtifact ) << "\" />\n";
+    this->AddedFiles.push_back( imageArtifact );
+    }
 
   // This file has already been added to the build so don't copy it
   std::string keyFile = this->DefaultArtifactDir + "/Windows_TemporaryKey.pfx";

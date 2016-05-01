@@ -55,6 +55,7 @@ private:
   void WriteString(const char* line, int indentLevel);
   void WriteProjectConfigurations();
   void WriteProjectConfigurationValues();
+  void WriteProjectConfigurationAnalysisValues( std::string const& config );
   void WriteMSToolConfigurationValues(std::string const& config);
   void WriteHeaderSource(cmSourceFile const* sf);
   void WriteExtraSource(cmSourceFile const* sf);
@@ -84,7 +85,8 @@ private:
   void WriteSDKReferences();
   void WriteSingleSDKReference(std::string const& extension,
                                std::string const& version);
-  void WriteCommonMissingFiles(const std::string& manifestFile);
+  void WriteCommonMissingFiles(const std::string& manifestFile,
+                               std::vector< std::string >& imageList);
   void WriteTargetSpecificReferences();
 
   bool ComputeClOptions();

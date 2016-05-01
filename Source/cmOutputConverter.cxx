@@ -966,7 +966,8 @@ char* cmOutputConverter::Shell__GetArgument(const char* in, char* out,
       }
     else if(*c == '%')
       {
-      if((flags & Shell_Flag_VSIDE) ||
+      //aaye removed VSIDE from using the %%
+      if(
          ((flags & Shell_Flag_Make) &&
           ((flags & Shell_Flag_MinGWMake) ||
            (flags & Shell_Flag_NMake))))

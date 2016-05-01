@@ -4593,6 +4593,11 @@ bool SystemTools::FileIsFullPath(const char* in_name, size_t len)
     {
     return true;
     }
+  //aaye assume paths that begin with a $ will be full pathed by using system
+  if(in_name[0] == '$')
+    {
+    return true;
+    }
   return false;
 }
 
