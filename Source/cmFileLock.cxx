@@ -1,67 +1,75 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2014 Ruslan Baratov
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFileLock.h"
 
-#include <assert.h>
+#include <cassert>
+#include <utility>
+
 #include "cmFileLockResult.h"
 
 // Common implementation
 
+cmFileLock::cmFileLock(cmFileLock&& other) noexcept
+{
+  this->File = other.File;
+#if defined(_WIN32)
+  other.File = INVALID_HANDLE_VALUE;
+#else
+  other.File = -1;
+#endif
+  this->Filename = std::move(other.Filename);
+}
+
 cmFileLock::~cmFileLock()
 {
-  if (!this->Filename.empty())
-    {
+  if (!this->Filename.empty()) {
     const cmFileLockResult result = this->Release();
     static_cast<void>(result);
     assert(result.IsOk());
-    }
+  }
 }
 
-cmFileLockResult cmFileLock::Lock(
-    const std::string& filename, unsigned long timeout)
+cmFileLock& cmFileLock::operator=(cmFileLock&& other) noexcept
 {
-  if (filename.empty())
-    {
+  this->File = other.File;
+#if defined(_WIN32)
+  other.File = INVALID_HANDLE_VALUE;
+#else
+  other.File = -1;
+#endif
+  this->Filename = std::move(other.Filename);
+
+  return *this;
+}
+
+cmFileLockResult cmFileLock::Lock(const std::string& filename,
+                                  unsigned long timeout)
+{
+  if (filename.empty()) {
     // Error is internal since all the directories and file must be created
     // before actual lock called.
     return cmFileLockResult::MakeInternal();
-    }
+  }
 
-  if (!this->Filename.empty())
-    {
+  if (!this->Filename.empty()) {
     // Error is internal since double-lock must be checked in class
     // cmFileLockPool by the cmFileLock::IsLocked method.
     return cmFileLockResult::MakeInternal();
-    }
+  }
 
   this->Filename = filename;
   cmFileLockResult result = this->OpenFile();
-  if (result.IsOk())
-    {
-    if (timeout == static_cast<unsigned long>(-1))
-      {
+  if (result.IsOk()) {
+    if (timeout == static_cast<unsigned long>(-1)) {
       result = this->LockWithoutTimeout();
-      }
-    else
-      {
+    } else {
       result = this->LockWithTimeout(timeout);
-      }
     }
+  }
 
-  if (!result.IsOk())
-    {
-    this->Filename = "";
-    }
+  if (!result.IsOk()) {
+    this->Filename.clear();
+  }
 
   return result;
 }
@@ -72,7 +80,7 @@ bool cmFileLock::IsLocked(const std::string& filename) const
 }
 
 #if defined(_WIN32)
-# include "cmFileLockWin32.cxx"
+#  include "cmFileLockWin32.cxx"
 #else
-# include "cmFileLockUnix.cxx"
+#  include "cmFileLockUnix.cxx"
 #endif

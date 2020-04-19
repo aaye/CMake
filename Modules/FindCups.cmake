@@ -1,34 +1,43 @@
-#.rst:
-# FindCups
-# --------
-#
-# Try to find the Cups printing system
-#
-# Once done this will define
-#
-# ::
-#
-#   CUPS_FOUND - system has Cups
-#   CUPS_INCLUDE_DIR - the Cups include directory
-#   CUPS_LIBRARIES - Libraries needed to use Cups
-#   CUPS_VERSION_STRING - version of Cups found (since CMake 2.8.8)
-#   Set CUPS_REQUIRE_IPP_DELETE_ATTRIBUTE to TRUE if you need a version which
-#   features this function (i.e. at least 1.1.19)
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2006-2009 Kitware, Inc.
-# Copyright 2006 Alexander Neundorf <neundorf@kde.org>
-# Copyright 2012 Rolf Eike Beer <eike@sf-mail.de>
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindCups
+--------
+
+Find the Common UNIX Printing System (CUPS).
+
+Set ``CUPS_REQUIRE_IPP_DELETE_ATTRIBUTE`` to ``TRUE`` if you need a version which
+features this function (i.e. at least ``1.1.19``)
+
+Imported targets
+^^^^^^^^^^^^^^^^
+
+This module defines :prop_tgt:`IMPORTED` target ``Cups::Cups``, if Cups has
+been found.
+
+Result variables
+^^^^^^^^^^^^^^^^
+
+This module will set the following variables in your project:
+
+``CUPS_FOUND``
+  true if CUPS headers and libraries were found
+``CUPS_INCLUDE_DIRS``
+  the directory containing the Cups headers
+``CUPS_LIBRARIES``
+  the libraries to link against to use CUPS.
+``CUPS_VERSION_STRING``
+  the version of CUPS found (since CMake 2.8.8)
+
+Cache variables
+^^^^^^^^^^^^^^^
+
+The following cache variables may also be set:
+
+``CUPS_INCLUDE_DIR``
+  the directory containing the Cups headers
+#]=======================================================================]
 
 find_path(CUPS_INCLUDE_DIR cups/cups.h )
 
@@ -55,7 +64,7 @@ if (CUPS_INCLUDE_DIR AND EXISTS "${CUPS_INCLUDE_DIR}/cups/cups.h")
             if(VLINE MATCHES "^#[\t ]*define[\t ]+CUPS_VERSION_${VPART}[\t ]+([0-9]+)$")
                 set(CUPS_VERSION_PART "${CMAKE_MATCH_1}")
                 if(CUPS_VERSION_STRING)
-                    set(CUPS_VERSION_STRING "${CUPS_VERSION_STRING}.${CUPS_VERSION_PART}")
+                    string(APPEND CUPS_VERSION_STRING ".${CUPS_VERSION_PART}")
                 else()
                     set(CUPS_VERSION_STRING "${CUPS_VERSION_PART}")
                 endif()
@@ -77,3 +86,13 @@ else ()
 endif ()
 
 mark_as_advanced(CUPS_INCLUDE_DIR CUPS_LIBRARIES)
+
+if (CUPS_FOUND)
+    set(CUPS_INCLUDE_DIRS "${CUPS_INCLUDE_DIR}")
+    if (NOT TARGET Cups::Cups)
+        add_library(Cups::Cups INTERFACE IMPORTED)
+        set_target_properties(Cups::Cups PROPERTIES
+            INTERFACE_LINK_LIBRARIES      "${CUPS_LIBRARIES}"
+            INTERFACE_INCLUDE_DIRECTORIES "${CUPS_INCLUDE_DIR}")
+    endif ()
+endif ()

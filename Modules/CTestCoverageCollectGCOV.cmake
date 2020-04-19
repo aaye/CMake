@@ -1,80 +1,71 @@
-#.rst:
-# CTestCoverageCollectGCOV
-# ------------------------
-#
-# This module provides the ``ctest_coverage_collect_gcov`` function.
-#
-# This function runs gcov on all .gcda files found in the binary tree
-# and packages the resulting .gcov files into a tar file.
-# This tarball also contains the following:
-#
-# * *data.json* defines the source and build directories for use by CDash.
-# * *Labels.json* indicates any :prop_sf:`LABELS` that have been set on the
-#   source files.
-# * The *uncovered* directory holds any uncovered files found by
-#   :variable:`CTEST_EXTRA_COVERAGE_GLOB`.
-#
-# After generating this tar file, it can be sent to CDash for display with the
-# :command:`ctest_submit(CDASH_UPLOAD)` command.
-#
-# .. command:: cdash_coverage_collect_gcov
-#
-#   ::
-#
-#     ctest_coverage_collect_gcov(TARBALL <tarfile>
-#       [SOURCE <source_dir>][BUILD <build_dir>]
-#       [GCOV_COMMAND <gcov_command>]
-#       [GCOV_OPTIONS <options>...]
-#       )
-#
-#   Run gcov and package a tar file for CDash.  The options are:
-#
-#   ``TARBALL <tarfile>``
-#     Specify the location of the ``.tar`` file to be created for later
-#     upload to CDash.  Relative paths will be interpreted with respect
-#     to the top-level build directory.
-#
-#   ``SOURCE <source_dir>``
-#     Specify the top-level source directory for the build.
-#     Default is the value of :variable:`CTEST_SOURCE_DIRECTORY`.
-#
-#   ``BUILD <build_dir>``
-#     Specify the top-level build directory for the build.
-#     Default is the value of :variable:`CTEST_BINARY_DIRECTORY`.
-#
-#   ``GCOV_COMMAND <gcov_command>``
-#     Specify the full path to the ``gcov`` command on the machine.
-#     Default is the value of :variable:`CTEST_COVERAGE_COMMAND`.
-#
-#   ``GCOV_OPTIONS <options>...``
-#     Specify options to be passed to gcov.  The ``gcov`` command
-#     is run as ``gcov <options>... -o <gcov-dir> <file>.gcda``.
-#     If not specified, the default option is just ``-b``.
-#
-#   ``GLOB``
-#     Recursively search for .gcda files in build_dir rather than
-#     determining search locations by reading TargetDirectories.txt.
-#
-#   ``DELETE``
-#     Delete coverage files after they've been packaged into the .tar.
-#
-#   ``QUIET``
-#     Suppress non-error messages that otherwise would have been
-#     printed out by this function.
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2014-2015 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
-include(CMakeParseArguments)
+#[=======================================================================[.rst:
+CTestCoverageCollectGCOV
+------------------------
+
+This module provides the ``ctest_coverage_collect_gcov`` function.
+
+This function runs gcov on all .gcda files found in the binary tree
+and packages the resulting .gcov files into a tar file.
+This tarball also contains the following:
+
+* *data.json* defines the source and build directories for use by CDash.
+* *Labels.json* indicates any :prop_sf:`LABELS` that have been set on the
+  source files.
+* The *uncovered* directory holds any uncovered files found by
+  :variable:`CTEST_EXTRA_COVERAGE_GLOB`.
+
+After generating this tar file, it can be sent to CDash for display with the
+:command:`ctest_submit(CDASH_UPLOAD)` command.
+
+.. command:: ctest_coverage_collect_gcov
+
+  ::
+
+    ctest_coverage_collect_gcov(TARBALL <tarfile>
+      [SOURCE <source_dir>][BUILD <build_dir>]
+      [GCOV_COMMAND <gcov_command>]
+      [GCOV_OPTIONS <options>...]
+      )
+
+  Run gcov and package a tar file for CDash.  The options are:
+
+  ``TARBALL <tarfile>``
+    Specify the location of the ``.tar`` file to be created for later
+    upload to CDash.  Relative paths will be interpreted with respect
+    to the top-level build directory.
+
+  ``SOURCE <source_dir>``
+    Specify the top-level source directory for the build.
+    Default is the value of :variable:`CTEST_SOURCE_DIRECTORY`.
+
+  ``BUILD <build_dir>``
+    Specify the top-level build directory for the build.
+    Default is the value of :variable:`CTEST_BINARY_DIRECTORY`.
+
+  ``GCOV_COMMAND <gcov_command>``
+    Specify the full path to the ``gcov`` command on the machine.
+    Default is the value of :variable:`CTEST_COVERAGE_COMMAND`.
+
+  ``GCOV_OPTIONS <options>...``
+    Specify options to be passed to gcov.  The ``gcov`` command
+    is run as ``gcov <options>... -o <gcov-dir> <file>.gcda``.
+    If not specified, the default option is just ``-b -x``.
+
+  ``GLOB``
+    Recursively search for .gcda files in build_dir rather than
+    determining search locations by reading TargetDirectories.txt.
+
+  ``DELETE``
+    Delete coverage files after they've been packaged into the .tar.
+
+  ``QUIET``
+    Suppress non-error messages that otherwise would have been
+    printed out by this function.
+#]=======================================================================]
+
 function(ctest_coverage_collect_gcov)
   set(options QUIET GLOB DELETE)
   set(oneValueArgs TARBALL SOURCE BUILD GCOV_COMMAND)
@@ -104,7 +95,7 @@ function(ctest_coverage_collect_gcov)
   set(gcda_files)
   set(label_files)
   if (GCOV_GLOB)
-      file(GLOB_RECURSE gfiles RELATIVE ${binary_dir} "${binary_dir}/*.gcda")
+      file(GLOB_RECURSE gfiles "${binary_dir}/*.gcda")
       list(LENGTH gfiles len)
       # if we have gcda files then also grab the labels file for that target
       if(${len} GREATER 0)
@@ -118,7 +109,7 @@ function(ctest_coverage_collect_gcov)
     file(STRINGS "${binary_dir}/CMakeFiles/TargetDirectories.txt" target_dirs
          ENCODING UTF-8)
     foreach(target_dir ${target_dirs})
-      file(GLOB_RECURSE gfiles RELATIVE ${binary_dir} "${target_dir}/*.gcda")
+      file(GLOB_RECURSE gfiles "${target_dir}/*.gcda")
       list(LENGTH gfiles len)
       # if we have gcda files then also grab the labels file for that target
       if(${len} GREATER 0)
@@ -141,30 +132,36 @@ function(ctest_coverage_collect_gcov)
   # setup the dir for the coverage files
   set(coverage_dir "${binary_dir}/Testing/CoverageInfo")
   file(MAKE_DIRECTORY  "${coverage_dir}")
-  # call gcov on each .gcda file
-  foreach (gcda_file ${gcda_files})
-    # get the directory of the gcda file
-    get_filename_component(gcda_file ${binary_dir}/${gcda_file} ABSOLUTE)
-    get_filename_component(gcov_dir ${gcda_file} DIRECTORY)
-    # run gcov, this will produce the .gcov file in the current
-    # working directory
-    if(NOT DEFINED GCOV_GCOV_OPTIONS)
-      set(GCOV_GCOV_OPTIONS -b)
-    endif()
-    execute_process(COMMAND
-      ${gcov_command} ${GCOV_GCOV_OPTIONS} -o ${gcov_dir} ${gcda_file}
-      OUTPUT_VARIABLE out
-      RESULT_VARIABLE res
-      WORKING_DIRECTORY ${coverage_dir})
+  # run gcov, this will produce the .gcov files in the current
+  # working directory
+  if(NOT DEFINED GCOV_GCOV_OPTIONS)
+    set(GCOV_GCOV_OPTIONS -b -x)
+  endif()
+  if (GCOV_QUIET)
+    set(coverage_out_opts
+      OUTPUT_QUIET
+      ERROR_QUIET
+      )
+  else()
+    set(coverage_out_opts
+      OUTPUT_FILE "${coverage_dir}/gcov.log"
+      ERROR_FILE  "${coverage_dir}/gcov.log"
+      )
+  endif()
+  execute_process(COMMAND
+    ${gcov_command} ${GCOV_GCOV_OPTIONS} ${gcda_files}
+    RESULT_VARIABLE res
+    WORKING_DIRECTORY ${coverage_dir}
+    ${coverage_out_opts}
+    )
 
-    if (GCOV_DELETE)
-      file(REMOVE ${gcda_file})
-    endif()
+  if (GCOV_DELETE)
+    file(REMOVE ${gcda_files})
+  endif()
 
-  endforeach()
   if(NOT "${res}" EQUAL 0)
     if (NOT GCOV_QUIET)
-      message(STATUS "Error running gcov: ${res} ${out}")
+      message(STATUS "Error running gcov: ${res}, see\n  ${coverage_dir}/gcov.log")
     endif()
   endif()
   # create json file with project information

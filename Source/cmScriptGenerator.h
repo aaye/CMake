@@ -1,40 +1,38 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmScriptGenerator_h
 #define cmScriptGenerator_h
 
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <ostream>
+#include <string>
+#include <vector>
 
 class cmScriptGeneratorIndent
 {
 public:
-  cmScriptGeneratorIndent(): Level(0) {}
-  cmScriptGeneratorIndent(int level): Level(level) {}
+  cmScriptGeneratorIndent() = default;
+  cmScriptGeneratorIndent(int level)
+    : Level(level)
+  {
+  }
   void Write(std::ostream& os) const
-    {
-    for(int i=0; i < this->Level; ++i)
-      {
+  {
+    for (int i = 0; i < this->Level; ++i) {
       os << " ";
-      }
     }
+  }
   cmScriptGeneratorIndent Next(int step = 2) const
-    {
-    return cmScriptGeneratorIndent(this->Level + step);
-    }
+  {
+    return { this->Level + step };
+  }
+
 private:
-  int Level;
+  int Level = 0;
 };
 inline std::ostream& operator<<(std::ostream& os,
-                                cmScriptGeneratorIndent const& indent)
+                                cmScriptGeneratorIndent indent)
 {
   indent.Write(os);
   return os;
@@ -47,22 +45,25 @@ inline std::ostream& operator<<(std::ostream& os,
 class cmScriptGenerator
 {
 public:
-  cmScriptGenerator(const std::string& config_var,
-                    std::vector<std::string> const& configurations);
+  cmScriptGenerator(std::string config_var,
+                    std::vector<std::string> configurations);
   virtual ~cmScriptGenerator();
+
+  cmScriptGenerator(cmScriptGenerator const&) = delete;
+  cmScriptGenerator& operator=(cmScriptGenerator const&) = delete;
 
   void Generate(std::ostream& os, const std::string& config,
                 std::vector<std::string> const& configurationTypes);
 
 protected:
-  typedef cmScriptGeneratorIndent Indent;
+  using Indent = cmScriptGeneratorIndent;
   virtual void GenerateScript(std::ostream& os);
-  virtual void GenerateScriptConfigs(std::ostream& os, Indent const& indent);
-  virtual void GenerateScriptActions(std::ostream& os, Indent const& indent);
+  virtual void GenerateScriptConfigs(std::ostream& os, Indent indent);
+  virtual void GenerateScriptActions(std::ostream& os, Indent indent);
   virtual void GenerateScriptForConfig(std::ostream& os,
                                        const std::string& config,
-                                       Indent const& indent);
-  virtual void GenerateScriptNoConfig(std::ostream&, Indent const&) {}
+                                       Indent indent);
+  virtual void GenerateScriptNoConfig(std::ostream&, Indent) {}
   virtual bool NeedsScriptNoConfig() const { return false; }
 
   // Test if this generator does something for a given configuration.
@@ -70,7 +71,7 @@ protected:
 
   std::string CreateConfigTest(const std::string& config);
   std::string CreateConfigTest(std::vector<std::string> const& configs);
-  std::string CreateComponentTest(const char* component);
+  std::string CreateComponentTest(const std::string& component);
 
   // Information shared by most generator types.
   std::string RuntimeConfigVariable;
@@ -86,8 +87,8 @@ protected:
   bool ActionsPerConfig;
 
 private:
-  void GenerateScriptActionsOnce(std::ostream& os, Indent const& indent);
-  void GenerateScriptActionsPerConfig(std::ostream& os, Indent const& indent);
+  void GenerateScriptActionsOnce(std::ostream& os, Indent indent);
+  void GenerateScriptActionsPerConfig(std::ostream& os, Indent indent);
 };
 
 #endif

@@ -1,19 +1,16 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmFindPathCommand_h
 #define cmFindPathCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmFindBase.h"
 
+class cmExecutionStatus;
 
 /** \class cmFindPathCommand
  * \brief Define a command to search for a library.
@@ -25,42 +22,21 @@
 class cmFindPathCommand : public cmFindBase
 {
 public:
-  cmFindPathCommand();
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    return new cmFindPathCommand;
-    }
+  cmFindPathCommand(cmExecutionStatus& status);
 
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &status);
+  bool InitialPass(std::vector<std::string> const& args);
 
-  /**
-   * This determines if the command is invoked when in script mode.
-   */
-  virtual bool IsScriptable() const { return true; }
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const {return "find_path";}
-
-  cmTypeMacro(cmFindPathCommand, cmFindBase);
   bool IncludeFileInPath;
+
 private:
   std::string FindHeaderInFramework(std::string const& file,
                                     std::string const& dir);
   std::string FindHeader();
-  std::string FindNormalHeader();
-  std::string FindFrameworkHeader();
+  std::string FindNormalHeader(cmFindBaseDebugState& debug);
+  std::string FindFrameworkHeader(cmFindBaseDebugState& debug);
 };
 
-
+bool cmFindPath(std::vector<std::string> const& args,
+                cmExecutionStatus& status);
 
 #endif

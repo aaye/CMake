@@ -1,242 +1,211 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmIfCommand.h"
-#include "cmStringCommand.h"
-#include "cmOutputConverter.h"
+
+#include <string>
+#include <utility>
+
+#include <cm/memory>
+#include <cm/string_view>
+
+#include "cm_static_string_view.hxx"
 
 #include "cmConditionEvaluator.h"
-
-#include <stdlib.h> // required for atof
-#include <list>
-#include <cmsys/RegularExpression.hxx>
-
+#include "cmExecutionStatus.h"
+#include "cmExpandedCommandArgument.h"
+#include "cmFunctionBlocker.h"
+#include "cmListFileCache.h"
+#include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmOutputConverter.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+#include "cmake.h"
 
 static std::string cmIfCommandError(
   std::vector<cmExpandedCommandArgument> const& args)
 {
   std::string err = "given arguments:\n ";
-  for(std::vector<cmExpandedCommandArgument>::const_iterator i = args.begin();
-      i != args.end(); ++i)
-    {
+  for (cmExpandedCommandArgument const& i : args) {
     err += " ";
-    err += cmOutputConverter::EscapeForCMake(i->GetValue());
-    }
+    err += cmOutputConverter::EscapeForCMake(i.GetValue());
+  }
   err += "\n";
   return err;
 }
 
-//=========================================================================
-bool cmIfFunctionBlocker::
-IsFunctionBlocked(const cmListFileFunction& lff,
-                  cmMakefile &mf,
-                  cmExecutionStatus &inStatus)
+class cmIfFunctionBlocker : public cmFunctionBlocker
 {
-  // we start by recording all the functions
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(),"if"))
-    {
-    this->ScopeDepth++;
+public:
+  cm::string_view StartCommandName() const override { return "if"_s; }
+  cm::string_view EndCommandName() const override { return "endif"_s; }
+
+  bool ArgumentsMatch(cmListFileFunction const& lff,
+                      cmMakefile&) const override;
+
+  bool Replay(std::vector<cmListFileFunction> functions,
+              cmExecutionStatus& inStatus) override;
+
+  std::vector<cmListFileArgument> Args;
+  bool IsBlocking;
+  bool HasRun = false;
+  bool ElseSeen = false;
+};
+
+bool cmIfFunctionBlocker::ArgumentsMatch(cmListFileFunction const& lff,
+                                         cmMakefile&) const
+{
+  return lff.Arguments.empty() || lff.Arguments == this->Args;
+}
+
+bool cmIfFunctionBlocker::Replay(std::vector<cmListFileFunction> functions,
+                                 cmExecutionStatus& inStatus)
+{
+  cmMakefile& mf = inStatus.GetMakefile();
+  // execute the functions for the true parts of the if statement
+  int scopeDepth = 0;
+  for (cmListFileFunction const& func : functions) {
+    // keep track of scope depth
+    if (func.Name.Lower == "if") {
+      scopeDepth++;
     }
-  else if (!cmSystemTools::Strucmp(lff.Name.c_str(),"endif"))
-    {
-    this->ScopeDepth--;
-    // if this is the endif for this if statement, then start executing
-    if (!this->ScopeDepth)
-      {
-      // Remove the function blocker for this scope or bail.
-      cmsys::auto_ptr<cmFunctionBlocker>
-        fb(mf.RemoveFunctionBlocker(this, lff));
-      if(!fb.get()) { return false; }
+    if (func.Name.Lower == "endif") {
+      scopeDepth--;
+    }
+    // watch for our state change
+    if (scopeDepth == 0 && func.Name.Lower == "else") {
 
-      // execute the functions for the true parts of the if statement
-      cmExecutionStatus status;
-      int scopeDepth = 0;
-      for(unsigned int c = 0; c < this->Functions.size(); ++c)
-        {
-        // keep track of scope depth
-        if (!cmSystemTools::Strucmp(this->Functions[c].Name.c_str(),"if"))
-          {
-          scopeDepth++;
-          }
-        if (!cmSystemTools::Strucmp(this->Functions[c].Name.c_str(),"endif"))
-          {
-          scopeDepth--;
-          }
-        // watch for our state change
-        if (scopeDepth == 0 &&
-            !cmSystemTools::Strucmp(this->Functions[c].Name.c_str(),"else"))
-          {
-          this->IsBlocking = this->HasRun;
-          this->HasRun = true;
+      if (this->ElseSeen) {
+        cmListFileBacktrace bt = mf.GetBacktrace(func);
+        mf.GetCMakeInstance()->IssueMessage(
+          MessageType::FATAL_ERROR,
+          "A duplicate ELSE command was found inside an IF block.", bt);
+        cmSystemTools::SetFatalErrorOccured();
+        return true;
+      }
 
-          // if trace is enabled, print a (trivially) evaluated "else"
-          // statement
-          if(!this->IsBlocking && mf.GetCMakeInstance()->GetTrace())
-            {
-            mf.PrintCommandTrace(this->Functions[c]);
-            }
-          }
-        else if (scopeDepth == 0 && !cmSystemTools::Strucmp
-                 (this->Functions[c].Name.c_str(),"elseif"))
-          {
-          if (this->HasRun)
-            {
-            this->IsBlocking = true;
-            }
-          else
-            {
-            // if trace is enabled, print the evaluated "elseif" statement
-            if(mf.GetCMakeInstance()->GetTrace())
-              {
-              mf.PrintCommandTrace(this->Functions[c]);
-              }
+      this->IsBlocking = this->HasRun;
+      this->HasRun = true;
+      this->ElseSeen = true;
 
-            std::string errorString;
+      // if trace is enabled, print a (trivially) evaluated "else"
+      // statement
+      if (!this->IsBlocking && mf.GetCMakeInstance()->GetTrace()) {
+        mf.PrintCommandTrace(func);
+      }
+    } else if (scopeDepth == 0 && func.Name.Lower == "elseif") {
+      if (this->ElseSeen) {
+        cmListFileBacktrace bt = mf.GetBacktrace(func);
+        mf.GetCMakeInstance()->IssueMessage(
+          MessageType::FATAL_ERROR,
+          "An ELSEIF command was found after an ELSE command.", bt);
+        cmSystemTools::SetFatalErrorOccured();
+        return true;
+      }
 
-            std::vector<cmExpandedCommandArgument> expandedArguments;
-            mf.ExpandArguments(this->Functions[c].Arguments,
-                               expandedArguments);
+      if (this->HasRun) {
+        this->IsBlocking = true;
+      } else {
+        // if trace is enabled, print the evaluated "elseif" statement
+        if (mf.GetCMakeInstance()->GetTrace()) {
+          mf.PrintCommandTrace(func);
+        }
 
-            cmake::MessageType messType;
+        std::string errorString;
 
-            cmListFileContext conditionContext =
-                cmListFileContext::FromCommandContext(
-                  this->Functions[c],
-                  this->GetStartingContext().FilePath);
+        std::vector<cmExpandedCommandArgument> expandedArguments;
+        mf.ExpandArguments(func.Arguments, expandedArguments);
 
-            cmConditionEvaluator conditionEvaluator(
-                  mf, conditionContext,
-                  mf.GetBacktrace(this->Functions[c]));
+        MessageType messType;
 
-            bool isTrue = conditionEvaluator.IsTrue(
-              expandedArguments, errorString, messType);
+        cmListFileContext conditionContext =
+          cmListFileContext::FromCommandContext(
+            func, this->GetStartingContext().FilePath);
 
-            if (!errorString.empty())
-              {
-              std::string err = cmIfCommandError(expandedArguments);
-              err += errorString;
-              cmListFileBacktrace bt = mf.GetBacktrace(this->Functions[c]);
-              mf.GetCMakeInstance()->IssueMessage(messType, err, bt);
-              if (messType == cmake::FATAL_ERROR)
-                {
-                cmSystemTools::SetFatalErrorOccured();
-                return true;
-                }
-              }
+        cmConditionEvaluator conditionEvaluator(mf, conditionContext,
+                                                mf.GetBacktrace(func));
 
-            if (isTrue)
-              {
-              this->IsBlocking = false;
-              this->HasRun = true;
-              }
-            }
-          }
+        bool isTrue =
+          conditionEvaluator.IsTrue(expandedArguments, errorString, messType);
 
-        // should we execute?
-        else if (!this->IsBlocking)
-          {
-          status.Clear();
-          mf.ExecuteCommand(this->Functions[c],status);
-          if (status.GetReturnInvoked())
-            {
-            inStatus.SetReturnInvoked(true);
+        if (!errorString.empty()) {
+          std::string err =
+            cmStrCat(cmIfCommandError(expandedArguments), errorString);
+          cmListFileBacktrace bt = mf.GetBacktrace(func);
+          mf.GetCMakeInstance()->IssueMessage(messType, err, bt);
+          if (messType == MessageType::FATAL_ERROR) {
+            cmSystemTools::SetFatalErrorOccured();
             return true;
-            }
-          if (status.GetBreakInvoked())
-            {
-            inStatus.SetBreakInvoked(true);
-            return true;
-            }
-          if (status.GetContinueInvoked())
-            {
-            inStatus.SetContinueInvoked(true);
-            return true;
-            }
           }
         }
-      return true;
+
+        if (isTrue) {
+          this->IsBlocking = false;
+          this->HasRun = true;
+        }
       }
     }
 
-  // record the command
-  this->Functions.push_back(lff);
-
-  // always return true
+    // should we execute?
+    else if (!this->IsBlocking) {
+      cmExecutionStatus status(mf);
+      mf.ExecuteCommand(func, status);
+      if (status.GetReturnInvoked()) {
+        inStatus.SetReturnInvoked();
+        return true;
+      }
+      if (status.GetBreakInvoked()) {
+        inStatus.SetBreakInvoked();
+        return true;
+      }
+      if (status.GetContinueInvoked()) {
+        inStatus.SetContinueInvoked();
+        return true;
+      }
+    }
+  }
   return true;
 }
 
 //=========================================================================
-bool cmIfFunctionBlocker::ShouldRemove(const cmListFileFunction& lff,
-                                       cmMakefile&)
+bool cmIfCommand(std::vector<cmListFileArgument> const& args,
+                 cmExecutionStatus& inStatus)
 {
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(),"endif"))
-    {
-    // if the endif has arguments, then make sure
-    // they match the arguments of the matching if
-    if (lff.Arguments.empty() ||
-        lff.Arguments == this->Args)
-      {
-      return true;
-      }
-    }
-
-  return false;
-}
-
-//=========================================================================
-bool cmIfCommand
-::InvokeInitialPass(const std::vector<cmListFileArgument>& args,
-                    cmExecutionStatus &)
-{
+  cmMakefile& makefile = inStatus.GetMakefile();
   std::string errorString;
 
   std::vector<cmExpandedCommandArgument> expandedArguments;
-  this->Makefile->ExpandArguments(args, expandedArguments);
+  makefile.ExpandArguments(args, expandedArguments);
 
-  cmake::MessageType status;
+  MessageType status;
 
   cmConditionEvaluator conditionEvaluator(
-        *(this->Makefile),
-        this->Makefile->GetExecutionContext(),
-        this->Makefile->GetBacktrace());
+    makefile, makefile.GetExecutionContext(), makefile.GetBacktrace());
 
-  bool isTrue = conditionEvaluator.IsTrue(
-    expandedArguments, errorString, status);
+  bool isTrue =
+    conditionEvaluator.IsTrue(expandedArguments, errorString, status);
 
-  if (!errorString.empty())
-    {
-    std::string err = cmIfCommandError(expandedArguments);
-    err += errorString;
-    if (status == cmake::FATAL_ERROR)
-      {
-      this->SetError(err);
+  if (!errorString.empty()) {
+    std::string err =
+      cmStrCat("if ", cmIfCommandError(expandedArguments), errorString);
+    if (status == MessageType::FATAL_ERROR) {
+      makefile.IssueMessage(MessageType::FATAL_ERROR, err);
       cmSystemTools::SetFatalErrorOccured();
-      return false;
-      }
-    else
-      {
-      this->Makefile->IssueMessage(status, err);
-      }
+      return true;
     }
+    makefile.IssueMessage(status, err);
+  }
 
-  cmIfFunctionBlocker *f = new cmIfFunctionBlocker();
-  // if is isn't true block the commands
-  f->ScopeDepth = 1;
-  f->IsBlocking = !isTrue;
-  if (isTrue)
-    {
-    f->HasRun = true;
+  {
+    auto fb = cm::make_unique<cmIfFunctionBlocker>();
+    // if is isn't true block the commands
+    fb->IsBlocking = !isTrue;
+    if (isTrue) {
+      fb->HasRun = true;
     }
-  f->Args = args;
-  this->Makefile->AddFunctionBlocker(f);
+    fb->Args = args;
+    makefile.AddFunctionBlocker(std::move(fb));
+  }
 
   return true;
 }

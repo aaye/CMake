@@ -1,43 +1,34 @@
-#.rst:
-# CMakeFindPackageMode
-# --------------------
-#
-#
-#
-# This file is executed by cmake when invoked with --find-package.  It
-# expects that the following variables are set using -D:
-#
-# ``NAME``
-#   name of the package
-# ``COMPILER_ID``
-#   the CMake compiler ID for which the result is,
-#   i.e. GNU/Intel/Clang/MSVC, etc.
-# ``LANGUAGE``
-#   language for which the result will be used,
-#   i.e. C/CXX/Fortan/ASM
-# ``MODE``
-#   ``EXIST``
-#     only check for existence of the given package
-#   ``COMPILE``
-#     print the flags needed for compiling an object file which uses
-#     the given package
-#   ``LINK``
-#     print the flags needed for linking when using the given package
-# ``QUIET``
-#   if TRUE, don't print anything
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2006-2011 Alexander Neundorf, <neundorf@kde.org>
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+CMakeFindPackageMode
+--------------------
+
+
+
+This file is executed by cmake when invoked with --find-package.  It
+expects that the following variables are set using -D:
+
+``NAME``
+  name of the package
+``COMPILER_ID``
+  the CMake compiler ID for which the result is,
+  i.e. GNU/Intel/Clang/MSVC, etc.
+``LANGUAGE``
+  language for which the result will be used,
+  i.e. C/CXX/Fortran/ASM
+``MODE``
+  ``EXIST``
+    only check for existence of the given package
+  ``COMPILE``
+    print the flags needed for compiling an object file which uses
+    the given package
+  ``LINK``
+    print the flags needed for linking when using the given package
+``QUIET``
+  if TRUE, don't print anything
+#]=======================================================================]
 
 if(NOT NAME)
   message(FATAL_ERROR "Name of the package to be searched not specified. Set the CMake variable NAME, e.g. -DNAME=JPEG .")
@@ -74,6 +65,8 @@ if("${CMAKE_SYSTEM_NAME}" MATCHES Darwin  AND  "${COMPILER_ID}" MATCHES GNU)
   set(CMAKE_${LANGUAGE}_SYSROOT_FLAG "")
   set(CMAKE_${LANGUAGE}_OSX_DEPLOYMENT_TARGET_FLAG "")
 endif()
+
+include(CMakeSystemSpecificInitialize)
 
 # Also load the system specific file, which sets up e.g. the search paths.
 # This makes the FIND_XXX() calls work much better

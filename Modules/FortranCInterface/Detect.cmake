@@ -1,13 +1,5 @@
-#=============================================================================
-# Copyright 2009 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
 configure_file(${FortranCInterface_SOURCE_DIR}/Input.cmake.in
                ${FortranCInterface_BINARY_DIR}/Input.cmake @ONLY)
@@ -23,7 +15,7 @@ if(${FortranCInterface_BINARY_DIR}/Input.cmake
     OR ${CMAKE_CURRENT_LIST_FILE}
     IS_NEWER_THAN ${FortranCInterface_BINARY_DIR}/Output.cmake
     )
-  message(STATUS "Detecting Fortran/C Interface")
+  message(CHECK_START "Detecting Fortran/C Interface")
 else()
   return()
 endif()
@@ -35,29 +27,27 @@ unset(FortranCInterface_VERIFIED_CXX CACHE)
 set(_result)
 
 # Build a sample project which reports symbols.
+set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
 try_compile(FortranCInterface_COMPILED
   ${FortranCInterface_BINARY_DIR}
   ${FortranCInterface_SOURCE_DIR}
-  FortranCInterface
+  FortranCInterface # project name
+  FortranCInterface # target name
   CMAKE_FLAGS
     "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}"
     "-DCMAKE_Fortran_FLAGS:STRING=${CMAKE_Fortran_FLAGS}"
+    "-DCMAKE_C_FLAGS_RELEASE:STRING=${CMAKE_C_FLAGS_RELEASE}"
+    "-DCMAKE_Fortran_FLAGS_RELEASE:STRING=${CMAKE_Fortran_FLAGS_RELEASE}"
   OUTPUT_VARIABLE FortranCInterface_OUTPUT)
 set(FortranCInterface_COMPILED ${FortranCInterface_COMPILED})
 unset(FortranCInterface_COMPILED CACHE)
 
 # Locate the sample project executable.
+set(FortranCInterface_EXE)
 if(FortranCInterface_COMPILED)
-  find_program(FortranCInterface_EXE
-    NAMES FortranCInterface${CMAKE_EXECUTABLE_SUFFIX}
-    PATHS ${FortranCInterface_BINARY_DIR} ${FortranCInterface_BINARY_DIR}/Debug
-    NO_DEFAULT_PATH
-    )
-  set(FortranCInterface_EXE ${FortranCInterface_EXE})
-  unset(FortranCInterface_EXE CACHE)
+  include(${FortranCInterface_BINARY_DIR}/exe-Release.cmake OPTIONAL)
 else()
   set(_result "Failed to compile")
-  set(FortranCInterface_EXE)
   file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
     "Fortran/C interface test project failed with the following output:\n"
     "${FortranCInterface_OUTPUT}\n")
@@ -176,7 +166,9 @@ if(FortranCInterface_GLOBAL_FOUND)
   else()
     set(_result "Found GLOBAL but not MODULE mangling")
   endif()
+  set(_result_type CHECK_PASS)
 elseif(NOT _result)
   set(_result "Failed to recognize symbols")
+  set(_result_type CHECK_FAIL)
 endif()
-message(STATUS "Detecting Fortran/C Interface - ${_result}")
+message(${_result_type} "${_result}")

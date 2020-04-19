@@ -1,73 +1,51 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmSubdirCommand.h"
 
-// cmSubdirCommand
-bool cmSubdirCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
+#include "cmExecutionStatus.h"
+#include "cmMakefile.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+
+bool cmSubdirCommand(std::vector<std::string> const& args,
+                     cmExecutionStatus& status)
 {
-  if(args.size() < 1 )
-    {
-    this->SetError("called with incorrect number of arguments");
+  if (args.empty()) {
+    status.SetError("called with incorrect number of arguments");
     return false;
-    }
+  }
   bool res = true;
   bool excludeFromAll = false;
+  cmMakefile& mf = status.GetMakefile();
 
-  for(std::vector<std::string>::const_iterator i = args.begin();
-      i != args.end(); ++i)
-    {
-    if(*i == "EXCLUDE_FROM_ALL")
-      {
+  for (std::string const& i : args) {
+    if (i == "EXCLUDE_FROM_ALL") {
       excludeFromAll = true;
       continue;
-      }
-    if(*i == "PREORDER")
-      {
+    }
+    if (i == "PREORDER") {
       // Ignored
       continue;
-      }
+    }
 
     // if they specified a relative path then compute the full
-    std::string srcPath =
-      std::string(this->Makefile->GetCurrentSourceDirectory()) +
-        "/" + i->c_str();
-    if (cmSystemTools::FileIsDirectory(srcPath))
-      {
-      std::string binPath =
-        std::string(this->Makefile->GetCurrentBinaryDirectory()) +
-        "/" + i->c_str();
-      this->Makefile->AddSubDirectory(srcPath, binPath,
-                                  excludeFromAll, false);
-      }
+    std::string srcPath = mf.GetCurrentSourceDirectory() + "/" + i;
+    if (cmSystemTools::FileIsDirectory(srcPath)) {
+      std::string binPath = mf.GetCurrentBinaryDirectory() + "/" + i;
+      mf.AddSubDirectory(srcPath, binPath, excludeFromAll, false);
+    }
     // otherwise it is a full path
-    else if ( cmSystemTools::FileIsDirectory(*i) )
-      {
+    else if (cmSystemTools::FileIsDirectory(i)) {
       // we must compute the binPath from the srcPath, we just take the last
       // element from the source path and use that
-      std::string binPath =
-        std::string(this->Makefile->GetCurrentBinaryDirectory()) +
-        "/" + cmSystemTools::GetFilenameName(*i);
-      this->Makefile->AddSubDirectory(*i, binPath,
-                                  excludeFromAll, false);
-      }
-    else
-      {
-      std::string error = "Incorrect SUBDIRS command. Directory: ";
-      error += *i + " does not exist.";
-      this->SetError(error);
+      std::string binPath = mf.GetCurrentBinaryDirectory() + "/" +
+        cmSystemTools::GetFilenameName(i);
+      mf.AddSubDirectory(i, binPath, excludeFromAll, false);
+    } else {
+      status.SetError(cmStrCat("Incorrect SUBDIRS command. Directory: ", i,
+                               " does not exist."));
       res = false;
-      }
     }
+  }
   return res;
 }
-

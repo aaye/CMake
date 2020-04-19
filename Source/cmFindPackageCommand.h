@@ -1,20 +1,35 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmFindPackageCommand_h
 #define cmFindPackageCommand_h
 
-#include "cmFindCommon.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmFindPackageFileList;
+#include <cstddef>
+#include <functional>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "cm_kwiml.h"
+
+#include "cmFindCommon.h"
+#include "cmPolicies.h"
+
+// IWYU insists we should forward-declare instead of including <functional>,
+// but we cannot forward-declare reliably because some C++ standard libraries
+// put the template in an inline namespace.
+#ifdef CMAKE_IWYU_FORWARD_STD_HASH
+/* clang-format off */
+namespace std {
+  template <class T> struct hash;
+}
+/* clang-format on */
+#endif
+
+class cmExecutionStatus;
+class cmSearchPath;
 
 /** \class cmFindPackageCommand
  * \brief Load settings from an external project.
@@ -24,45 +39,49 @@ class cmFindPackageFileList;
 class cmFindPackageCommand : public cmFindCommon
 {
 public:
-  cmFindPackageCommand();
+  /*! A sorting order strategy to be applied to recovered package folders (see
+   * FIND_PACKAGE_SORT_ORDER)*/
+  enum /*class*/ SortOrderType
+  {
+    None,
+    Name_order,
+    Natural
+  };
+  /*! A sorting direction to be applied to recovered package folders (see
+   * FIND_PACKAGE_SORT_DIRECTION)*/
+  enum /*class*/ SortDirectionType
+  {
+    Asc,
+    Dec
+  };
 
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    return new cmFindPackageCommand;
-    }
+  /*! sorts a given list of string based on the input sort parameters */
+  static void Sort(std::vector<std::string>::iterator begin,
+                   std::vector<std::string>::iterator end, SortOrderType order,
+                   SortDirectionType dir);
 
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &status);
+  cmFindPackageCommand(cmExecutionStatus& status);
 
-  /**
-   * This determines if the command is invoked when in script mode.
-   */
-  virtual bool IsScriptable() const { return true; }
+  bool InitialPass(std::vector<std::string> const& args);
 
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "find_package";}
-
-  cmTypeMacro(cmFindPackageCommand, cmFindCommon);
 private:
   class PathLabel : public cmFindCommon::PathLabel
   {
   protected:
     PathLabel();
+
   public:
-    PathLabel(const std::string& label) : cmFindCommon::PathLabel(label) { }
+    PathLabel(const std::string& label)
+      : cmFindCommon::PathLabel(label)
+    {
+    }
     static PathLabel UserRegistry;
     static PathLabel Builds;
     static PathLabel SystemRegistry;
   };
+
+  bool FindPackageUsingModuleMode();
+  bool FindPackageUsingConfigMode();
 
   // Add additional search path labels and groups not present in the
   // parent class
@@ -74,16 +93,28 @@ private:
   bool FindModule(bool& found);
   void AddFindDefinition(const std::string& var, const char* val);
   void RestoreFindDefinitions();
-  bool HandlePackageMode();
+
+  enum /*class*/ HandlePackageModeType
+  {
+    Module,
+    Config
+  };
+  bool HandlePackageMode(HandlePackageModeType type);
+
   bool FindConfig();
   bool FindPrefixedConfig();
   bool FindFrameworkConfig();
   bool FindAppBundleConfig();
-  enum PolicyScopeRule { NoPolicyScope, DoPolicyScope };
-  bool ReadListFile(const char* f, PolicyScopeRule psr);
+  enum PolicyScopeRule
+  {
+    NoPolicyScope,
+    DoPolicyScope
+  };
+  bool ReadListFile(const std::string& f, PolicyScopeRule psr);
   void StoreVersionFound();
 
   void ComputePrefixes();
+  void FillPrefixesPackageRoot();
   void FillPrefixesCMakeEnvironment();
   void FillPrefixesCMakeVariable();
   void FillPrefixesSystemEnvironment();
@@ -111,8 +142,14 @@ private:
 
   friend class cmFindPackageFileList;
 
-  struct OriginalDef { bool exists; std::string value; };
+  struct OriginalDef
+  {
+    bool exists;
+    std::string value;
+  };
   std::map<std::string, OriginalDef> OriginalDefs;
+
+  std::map<std::string, cmPolicies::PolicyID> DeprecatedFindModules;
 
   std::string Name;
   std::string Variable;
@@ -137,16 +174,64 @@ private:
   bool UseFindModules;
   bool NoUserRegistry;
   bool NoSystemRegistry;
-  bool DebugMode;
+  bool UseLib32Paths;
   bool UseLib64Paths;
+  bool UseLibx32Paths;
+  bool UseRealPath;
   bool PolicyScope;
   std::string LibraryArchitecture;
   std::vector<std::string> Names;
   std::vector<std::string> Configs;
   std::set<std::string> IgnoredPaths;
+  std::string DebugBuffer;
 
-  struct ConfigFileInfo { std::string filename; std::string version; };
+  /*! the selected sortOrder (None by default)*/
+  SortOrderType SortOrder;
+  /*! the selected sortDirection (Asc by default)*/
+  SortDirectionType SortDirection;
+
+  struct ConfigFileInfo
+  {
+    std::string filename;
+    std::string version;
+
+    bool operator<(ConfigFileInfo const& rhs) const
+    {
+      return this->filename < rhs.filename;
+    }
+
+    bool operator==(ConfigFileInfo const& rhs) const
+    {
+      return this->filename == rhs.filename;
+    }
+
+    bool operator!=(ConfigFileInfo const& rhs) const
+    {
+      return !(*this == rhs);
+    }
+  };
   std::vector<ConfigFileInfo> ConsideredConfigs;
+
+  friend struct std::hash<ConfigFileInfo>;
 };
+
+namespace std {
+
+template <>
+struct hash<cmFindPackageCommand::ConfigFileInfo>
+{
+  using argument_type = cmFindPackageCommand::ConfigFileInfo;
+  using result_type = size_t;
+
+  result_type operator()(argument_type const& s) const noexcept
+  {
+    result_type const h(std::hash<std::string>{}(s.filename));
+    return h;
+  }
+};
+}
+
+bool cmFindPackage(std::vector<std::string> const& args,
+                   cmExecutionStatus& status);
 
 #endif

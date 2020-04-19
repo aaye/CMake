@@ -1,3 +1,6 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
+
 #[=======================================================================[.rst:
 FortranCInterface
 -----------------
@@ -186,19 +189,6 @@ tells FortranCInterface to try given ``GLOBAL`` and ``MODULE`` manglings.
 are not needed.)
 #]=======================================================================]
 
-#=============================================================================
-# Copyright 2008-2009 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
-
 #-----------------------------------------------------------------------------
 # Execute at most once in a project.
 if(FortranCInterface_SOURCE_DIR)
@@ -270,7 +260,7 @@ function(FortranCInterface_HEADER file)
   set(_desc_MODULE_ "/* Mangling for Fortran module symbols with underscores. */")
   foreach(macro GLOBAL GLOBAL_ MODULE MODULE_)
     if(FortranCInterface_${macro}_MACRO)
-      set(HEADER_CONTENT "${HEADER_CONTENT}
+      string(APPEND HEADER_CONTENT "
 ${_desc_${macro}}
 #define ${MACRO_NAMESPACE}${macro}${FortranCInterface_${macro}_MACRO}
 ")
@@ -279,7 +269,7 @@ ${_desc_${macro}}
 
   # Generate symbol mangling definitions.
   if(SYMBOLS)
-    set(HEADER_CONTENT "${HEADER_CONTENT}
+    string(APPEND HEADER_CONTENT "
 /*--------------------------------------------------------------------------*/
 /* Mangle some symbols automatically.                                       */
 ")
@@ -300,7 +290,7 @@ ${_desc_${macro}}
         set(form "")
       endif()
       if(FortranCInterface_MODULE${form}_MACRO)
-        set(HEADER_CONTENT "${HEADER_CONTENT}#define ${SYMBOL_NAMESPACE}${module}_${function} ${MACRO_NAMESPACE}MODULE${form}(${m_lower},${f_lower}, ${m_upper},${f_upper})\n")
+        string(APPEND HEADER_CONTENT "#define ${SYMBOL_NAMESPACE}${module}_${function} ${MACRO_NAMESPACE}MODULE${form}(${m_lower},${f_lower}, ${m_upper},${f_upper})\n")
       else()
         message(AUTHOR_WARNING "No FortranCInterface mangling known for ${f}")
       endif()
@@ -314,7 +304,7 @@ ${_desc_${macro}}
       string(TOUPPER "${f}" f_upper)
       string(TOLOWER "${f}" f_lower)
       if(FortranCInterface_GLOBAL${form}_MACRO)
-        set(HEADER_CONTENT "${HEADER_CONTENT}#define ${SYMBOL_NAMESPACE}${f} ${MACRO_NAMESPACE}GLOBAL${form}(${f_lower}, ${f_upper})\n")
+        string(APPEND HEADER_CONTENT "#define ${SYMBOL_NAMESPACE}${f} ${MACRO_NAMESPACE}GLOBAL${form}(${f_lower}, ${f_upper})\n")
       else()
         message(AUTHOR_WARNING "No FortranCInterface mangling known for ${f}")
       endif()
@@ -351,14 +341,15 @@ function(FortranCInterface_VERIFY)
   # Build the verification project if not yet built.
   if(NOT DEFINED FortranCInterface_VERIFIED_${lang})
     set(_desc "Verifying Fortran/${lang} Compiler Compatibility")
-    message(STATUS "${_desc}")
+    message(CHECK_START "${_desc}")
 
     # Build a sample project which reports symbols.
     set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
     try_compile(FortranCInterface_VERIFY_${lang}_COMPILED
       ${FortranCInterface_BINARY_DIR}/Verify${lang}
       ${FortranCInterface_SOURCE_DIR}/Verify
-      VerifyFortranC
+      VerifyFortranC # project name
+      VerifyFortranC # target name
       CMAKE_FLAGS -DVERIFY_CXX=${verify_cxx}
                   -DCMAKE_VERBOSE_MAKEFILE=ON
                  "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}"
@@ -372,12 +363,12 @@ function(FortranCInterface_VERIFY)
 
     # Report results.
     if(FortranCInterface_VERIFY_${lang}_COMPILED)
-      message(STATUS "${_desc} - Success")
+      message(CHECK_PASS "Success")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
         "${_desc} passed with the following output:\n${_output}\n\n")
       set(FortranCInterface_VERIFIED_${lang} 1 CACHE INTERNAL "Fortran/${lang} compatibility")
     else()
-      message(STATUS "${_desc} - Failed")
+      message(CHECK_FAIL "Failed")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
         "${_desc} failed with the following output:\n${_output}\n\n")
       set(FortranCInterface_VERIFIED_${lang} 0 CACHE INTERNAL "Fortran/${lang} compatibility")

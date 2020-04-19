@@ -1,22 +1,15 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef CMakeSetupDialog_h
 #define CMakeSetupDialog_h
 
+#include <memory>
+
 #include "QCMake.h"
+#include <QEventLoop>
 #include <QMainWindow>
 #include <QThread>
-#include <QEventLoop>
+
 #include "ui_CMakeSetupDialog.h"
 
 class QCMakeThread;
@@ -24,8 +17,14 @@ class CMakeCacheModel;
 class QProgressBar;
 class QToolButton;
 
+#ifdef QT_WINEXTRAS
+class QWinTaskbarButton;
+#endif
+
 /// Qt user interface for CMake
-class CMakeSetupDialog : public QMainWindow, public Ui::CMakeSetupDialog
+class CMakeSetupDialog
+  : public QMainWindow
+  , public Ui::CMakeSetupDialog
 {
   Q_OBJECT
 public:
@@ -40,6 +39,7 @@ protected slots:
   void initialize();
   void doConfigure();
   void doGenerate();
+  void doOpenProject();
   void doInstallForCommandLine();
   void doHelp();
   void doAbout();
@@ -77,7 +77,7 @@ protected slots:
   bool doConfigureInternal();
   bool doGenerateInternal();
   void exitLoop(int);
-  void doOutputContextMenu(const QPoint &);
+  void doOutputContextMenu(QPoint pt);
   void doOutputFindDialog();
   void doOutputFindNext(bool directionForward = true);
   void doOutputFindPrev();
@@ -87,8 +87,14 @@ protected slots:
   void doWarningMessagesDialog();
 
 protected:
-
-  enum State { Interrupting, ReadyConfigure, ReadyGenerate, Configuring, Generating };
+  enum State
+  {
+    Interrupting,
+    ReadyConfigure,
+    ReadyGenerate,
+    Configuring,
+    Generating
+  };
   void enterState(State s);
 
   void closeEvent(QCloseEvent*);
@@ -118,6 +124,10 @@ protected:
 
   QEventLoop LocalLoop;
 
+#ifdef QT_WINEXTRAS
+  QWinTaskbarButton* TaskbarButton;
+#endif
+
   float ProgressOffset;
   float ProgressFactor;
 };
@@ -135,7 +145,7 @@ signals:
 
 protected:
   virtual void run();
-  QCMake* CMakeInstance;
+  std::unique_ptr<QCMake> CMakeInstance;
 };
 
 #endif // CMakeSetupDialog_h

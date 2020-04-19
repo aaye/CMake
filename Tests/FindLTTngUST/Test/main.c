@@ -1,14 +1,14 @@
 #include <assert.h>
-#include <string.h>
-#include <stdio.h>
 #include <lttng/ust-version.h>
+#include <stdio.h>
+#include <string.h>
 
 #ifdef CMAKE_LTTNGUST_HAS_TRACEF
-#include <lttng/tracef.h>
+#  include <lttng/tracef.h>
 #endif
 
 #ifdef CMAKE_LTTNGUST_HAS_TRACELOG
-#include <lttng/tracelog.h>
+#  include <lttng/tracelog.h>
 #endif
 
 int main(void)

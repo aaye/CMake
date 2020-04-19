@@ -21,7 +21,11 @@ newlines = []
 for line in lines:
 
   mapping = (("command", "command"),
+             ("cpack generator", "cpack_gen"),
+             ("envvar", "envvar"),
              ("variable", "variable"),
+             ("generator", "generator"),
+             ("guide", "guide"),
              ("target property", "prop_tgt"),
              ("test property", "prop_test"),
              ("source file property", "prop_sf"),

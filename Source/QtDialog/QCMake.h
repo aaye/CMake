@@ -1,39 +1,39 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef QCMake_h
 #define QCMake_h
-#ifdef _MSC_VER
-#pragma warning ( disable : 4127 )
-#pragma warning ( disable : 4512 )
-#endif
 
-#include <vector>
-
-#include <QObject>
-#include <QString>
-#include <QVariant>
-#include <QList>
-#include <QStringList>
-#include <QMetaType>
-#include <QAtomicInt>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmake.h"
+
+#ifdef _MSC_VER
+#  pragma warning(disable : 4127)
+#  pragma warning(disable : 4512)
+#endif
+
+#include <memory>
+#include <vector>
+
+#include <QAtomicInt>
+#include <QList>
+#include <QMetaType>
+#include <QObject>
+#include <QString>
+#include <QStringList>
+#include <QVariant>
 
 /// struct to represent cmake properties in Qt
 /// Value is of type String or Bool
 struct QCMakeProperty
 {
-  enum PropertyType { BOOL, PATH, FILEPATH, STRING };
+  enum PropertyType
+  {
+    BOOL,
+    PATH,
+    FILEPATH,
+    STRING
+  };
   QString Key;
   QVariant Value;
   QStringList Strings;
@@ -41,17 +41,17 @@ struct QCMakeProperty
   PropertyType Type;
   bool Advanced;
   bool operator==(const QCMakeProperty& other) const
-    {
+  {
     return this->Key == other.Key;
-    }
+  }
   bool operator<(const QCMakeProperty& other) const
-    {
+  {
     return this->Key < other.Key;
-    }
+  }
 };
 
 // list of properties
-typedef QList<QCMakeProperty> QCMakePropertyList;
+using QCMakePropertyList = QList<QCMakeProperty>;
 
 // allow QVariant to be a property or list of properties
 Q_DECLARE_METATYPE(QCMakeProperty)
@@ -64,7 +64,7 @@ class QCMake : public QObject
 {
   Q_OBJECT
 public:
-  QCMake(QObject* p=0);
+  QCMake(QObject* p = nullptr);
   ~QCMake();
 public slots:
   /// load the cache file in a directory
@@ -76,14 +76,19 @@ public slots:
   /// set the desired generator to use
   void setGenerator(const QString& generator);
   /// set the desired generator to use
+  void setPlatform(const QString& platform);
+  /// set the desired generator to use
   void setToolset(const QString& toolset);
   /// do the configure step
   void configure();
   /// generate the files
   void generate();
+  /// open the project
+  void open();
   /// set the property values
   void setProperties(const QCMakePropertyList&);
-  /// interrupt the configure or generate process (if connecting, make a direct connection)
+  /// interrupt the configure or generate process (if connecting, make a direct
+  /// connection)
   void interrupt();
   /// delete the cache in binary directory
   void deleteCache();
@@ -111,6 +116,8 @@ public slots:
   void setWarnUninitializedMode(bool value);
   /// set whether to run cmake with warnings about unused variables
   void setWarnUnusedMode(bool value);
+  /// check if project IDE open is possible and emit openPossible signal
+  void checkOpenPossible();
 
 public:
   /// get the list of cache properties
@@ -127,7 +134,8 @@ public:
   bool getDebugOutput() const;
 
 signals:
-  /// signal when properties change (during read from disk or configure process)
+  /// signal when properties change (during read from disk or configure
+  /// process)
   void propertiesChanged(const QCMakePropertyList& vars);
   /// signal when the generator changes
   void generatorChanged(const QString& gen);
@@ -150,22 +158,29 @@ signals:
   void debugOutputChanged(bool);
   /// signal when the toolset changes
   void toolsetChanged(const QString& toolset);
+  /// signal when the platform changes
+  void platformChanged(const QString& platform);
+  /// signal when open is done
+  void openDone(bool successful);
+  /// signal when open is done
+  void openPossible(bool possible);
 
 protected:
-  cmake* CMakeInstance;
+  std::unique_ptr<cmake> CMakeInstance;
 
-  static bool interruptCallback(void*);
-  static void progressCallback(const char* msg, float percent, void* cd);
-  static void messageCallback(const char* msg, const char* title,
-                              bool&, void* cd);
-  static void stdoutCallback(const char* msg, size_t len, void* cd);
-  static void stderrCallback(const char* msg, size_t len, void* cd);
+  bool interruptCallback();
+  void progressCallback(std::string const& msg, float percent);
+  void messageCallback(std::string const& msg, const char* title);
+  void stdoutCallback(std::string const& msg);
+  void stderrCallback(std::string const& msg);
+
   bool WarnUninitializedMode;
   bool WarnUnusedMode;
   bool WarnUnusedAllMode;
   QString SourceDirectory;
   QString BinaryDirectory;
   QString Generator;
+  QString Platform;
   QString Toolset;
   std::vector<cmake::GeneratorInfo> AvailableGenerators;
   QString CMakeExecutable;
@@ -173,4 +188,3 @@ protected:
 };
 
 #endif // QCMake_h
-

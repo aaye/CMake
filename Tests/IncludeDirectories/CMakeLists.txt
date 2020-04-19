@@ -2,8 +2,10 @@ cmake_minimum_required (VERSION 2.6)
 project(IncludeDirectories)
 
 if (((CMAKE_C_COMPILER_ID STREQUAL GNU AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.4)
-    OR CMAKE_C_COMPILER_ID STREQUAL Clang OR CMAKE_C_COMPILER_ID STREQUAL AppleClang)
-    AND (CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "Ninja"))
+    OR (CMAKE_C_COMPILER_ID STREQUAL Clang AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC") OR CMAKE_C_COMPILER_ID STREQUAL AppleClang)
+    AND (CMAKE_GENERATOR STREQUAL "Unix Makefiles"
+      OR CMAKE_GENERATOR STREQUAL "Ninja"
+      OR (CMAKE_GENERATOR STREQUAL "Xcode" AND NOT XCODE_VERSION VERSION_LESS 6.0)))
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag(-Wunused-variable run_sys_includes_test)
   if(run_sys_includes_test)
@@ -39,9 +41,9 @@ if(WATCOM OR MSVC60)
   set(USE_FULLPATH FALSE)
 endif()
 if(USE_FULLPATH)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \"-I${CMAKE_BINARY_DIR}/Flags\"")
+  string(APPEND CMAKE_CXX_FLAGS " \"-I${CMAKE_BINARY_DIR}/Flags\"")
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -IFlags")
+  string(APPEND CMAKE_CXX_FLAGS " -IFlags")
 endif()
 
 include_directories(${CMAKE_BINARY_DIR}/IncDir)
@@ -63,6 +65,44 @@ else()
     PROPERTIES COMPILE_FLAGS "-ITarProp")
 endif()
 
+# Test escaping of special characters in include directory paths.
+set(special_chars "~@%&{}()!'")
+if(NOT CMAKE_GENERATOR STREQUAL "Watcom WMake")
+  # Watcom seems to have no way to encode these characters.
+  string(APPEND special_chars "#=[]")
+endif()
+if(NOT (MINGW AND CMAKE_GENERATOR MATCHES "(Unix|MSYS) Makefiles"))
+  # FIXME: Dependencies work but command-line generation does not handle '$'.
+  string(APPEND special_chars "$")
+endif()
+if(NOT CMAKE_GENERATOR MATCHES "(Borland|NMake) Makefiles")
+  # NMake and Borland seem to have no way to encode a single '^'.
+  string(APPEND special_chars "^")
+endif()
+if(NOT CMAKE_GENERATOR MATCHES "Visual Studio 9 2008|Watcom WMake")
+  # The vcproj format separates values with ','.
+  string(APPEND special_chars ",")
+endif()
+if(NOT WIN32 AND NOT CYGWIN)
+  string(APPEND special_chars "*?<>")
+endif()
+set(special_dir "${CMAKE_CURRENT_BINARY_DIR}/special-${special_chars}-include")
+file(WRITE "${special_dir}/SpecialDir.h" "#define SPECIAL_DIR_H\n")
+target_include_directories(IncludeDirectories PRIVATE "${special_dir}")
+target_compile_definitions(IncludeDirectories PRIVATE INCLUDE_SPECIAL_DIR)
+
+if(MAKE_SUPPORTS_SPACES)
+  set(special_space_dir "${CMAKE_CURRENT_BINARY_DIR}/special-space ${special_chars}-include")
+  file(WRITE "${special_space_dir}/SpecialSpaceDir.h" "#define SPECIAL_SPACE_DIR_H\n")
+  target_include_directories(IncludeDirectories PRIVATE "${special_space_dir}")
+  target_compile_definitions(IncludeDirectories PRIVATE INCLUDE_SPECIAL_SPACE_DIR)
+endif()
+
+add_library(ordertest ordertest.cpp)
+target_include_directories(ordertest SYSTEM PUBLIC SystemIncludeDirectories/systemlib)
+target_include_directories(ordertest PUBLIC SystemIncludeDirectories/userlib)
+
+add_subdirectory(StandardIncludeDirectories)
 add_subdirectory(TargetIncludeDirectories)
 
 set_property(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${CMAKE_BINARY_DIR}")
@@ -87,6 +127,6 @@ if (NOT incs STREQUAL ";/one/two")
   message(SEND_ERROR "Empty include_directories entry was not ignored.")
 endif()
 
-if(NOT CMAKE_GENERATOR STREQUAL Xcode AND NOT CMAKE_GENERATOR STREQUAL Ninja)
+if(NOT CMAKE_GENERATOR STREQUAL "Xcode" AND NOT CMAKE_GENERATOR MATCHES "Ninja")
   add_subdirectory(CMP0021)
 endif()

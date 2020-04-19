@@ -23,12 +23,22 @@
 * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifndef ARCHIVE_CRYPTOR_PRIVATE_H_INCLUDED
+#define ARCHIVE_CRYPTOR_PRIVATE_H_INCLUDED
+
 #ifndef __LIBARCHIVE_BUILD
 #error This header is only to be used internally to libarchive.
 #endif
-
-#ifndef ARCHIVE_CRYPTOR_PRIVATE_H_INCLUDED
-#define ARCHIVE_CRYPTOR_PRIVATE_H_INCLUDED
+/*
+ * On systems that do not support any recognized crypto libraries,
+ * the archive_cryptor.c file will normally define no usable symbols.
+ *
+ * But some compilers and linkers choke on empty object files, so
+ * define a public symbol that will always exist.  This could
+ * be removed someday if this file gains another always-present
+ * symbol definition.
+ */
+int __libarchive_cryptor_build_hack(void);
 
 #ifdef __APPLE__
 # include <AvailabilityMacros.h>
@@ -53,7 +63,7 @@ typedef struct {
 } archive_crypto_ctx;
 
 #elif defined(_WIN32) && !defined(__CYGWIN__) && defined(HAVE_BCRYPT_H)
-#include <Bcrypt.h>
+#include <bcrypt.h>
 
 /* Common in other bcrypt implementations, but missing from VS2008. */
 #ifndef BCRYPT_SUCCESS
@@ -72,7 +82,24 @@ typedef struct {
 	unsigned	encr_pos;
 } archive_crypto_ctx;
 
-#elif defined(HAVE_LIBNETTLE)
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_AES_H)
+#include <mbedtls/aes.h>
+#include <mbedtls/md.h>
+#include <mbedtls/pkcs5.h>
+
+#define AES_MAX_KEY_SIZE 32
+#define AES_BLOCK_SIZE 16
+
+typedef struct {
+	mbedtls_aes_context	ctx;
+	uint8_t		key[AES_MAX_KEY_SIZE];
+	unsigned	key_len;
+	uint8_t		nonce[AES_BLOCK_SIZE];
+	uint8_t		encr_buf[AES_BLOCK_SIZE];
+	unsigned	encr_pos;
+} archive_crypto_ctx;
+
+#elif defined(HAVE_LIBNETTLE) && defined(HAVE_NETTLE_AES_H)
 #if defined(HAVE_NETTLE_PBKDF2_H)
 #include <nettle/pbkdf2.h>
 #endif
@@ -88,12 +115,12 @@ typedef struct {
 } archive_crypto_ctx;
 
 #elif defined(HAVE_LIBCRYPTO)
-#include <openssl/evp.h>
+#include "archive_openssl_evp_private.h"
 #define AES_BLOCK_SIZE	16
 #define AES_MAX_KEY_SIZE 32
 
 typedef struct {
-	EVP_CIPHER_CTX	ctx;
+	EVP_CIPHER_CTX	*ctx;
 	const EVP_CIPHER *type;
 	uint8_t		key[AES_MAX_KEY_SIZE];
 	unsigned	key_len;

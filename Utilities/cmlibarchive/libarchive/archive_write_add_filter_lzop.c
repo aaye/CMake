@@ -173,7 +173,7 @@ archive_write_add_filter_lzop(struct archive *_a)
 	data->compression_level = 5;
 	return (ARCHIVE_OK);
 #else
-	data->pdata = __archive_write_program_allocate();
+	data->pdata = __archive_write_program_allocate("lzop");
 	if (data->pdata == NULL) {
 		free(data);
 		archive_set_error(_a, ENOMEM, "Can't allocate memory");
@@ -228,11 +228,6 @@ static int
 archive_write_lzop_open(struct archive_write_filter *f)
 {
 	struct write_lzop *data = (struct write_lzop *)f->data;
-	int ret;
-
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
 
 	switch (data->compression_level) {
 	case 1:
@@ -439,10 +434,7 @@ archive_write_lzop_close(struct archive_write_filter *f)
 	}
 	/* Write a zero uncompressed size as the end mark of the series of
 	 * compressed block. */
-	r = __archive_write_filter(f->next_filter, &endmark, sizeof(endmark));
-	if (r != ARCHIVE_OK)
-		return (r);
-	return (__archive_write_close_filter(f->next_filter));
+	return __archive_write_filter(f->next_filter, &endmark, sizeof(endmark));
 }
 
 #else

@@ -1,16 +1,6 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2009 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
 
 # This file is included by CMakeFindEclipseCDT4.cmake and CMakeFindCodeBlocks.cmake
 
@@ -37,6 +27,7 @@ macro(_DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _resultIncludeDirs _resultDefines
     set(_compilerExecutable "${CMAKE_C_COMPILER}")
     set(_arg1 "${CMAKE_C_COMPILER_ARG1}")
   endif ()
+  separate_arguments(_arg1 NATIVE_COMMAND "${_arg1}")
   execute_process(COMMAND ${_compilerExecutable} ${_arg1} ${_stdver} ${_stdlib} -v -E -x ${_lang} -dD dummy
                   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/CMakeFiles
                   ERROR_VARIABLE _gccOutput
@@ -76,10 +67,10 @@ macro(_DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _resultIncludeDirs _resultDefines
     #message(STATUS "m1: -${CMAKE_MATCH_1}- m2: -${CMAKE_MATCH_2}- m3: -${CMAKE_MATCH_3}-")
 
     list(APPEND ${_resultDefines} "${_name}")
-    if(_value)
-      list(APPEND ${_resultDefines} "${_value}")
-    else()
+    if ("${_value}" STREQUAL "")
       list(APPEND ${_resultDefines} " ")
+    else()
+      list(APPEND ${_resultDefines} "${_value}")
     endif()
   endforeach()
 

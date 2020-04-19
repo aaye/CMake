@@ -1,16 +1,6 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2004-2012 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
 
 macro(_cmake_find_compiler lang)
   # Use already-enabled languages for reference.
@@ -128,3 +118,18 @@ macro(_cmake_find_compiler_path lang)
     endif()
   endif()
 endmacro()
+
+function(_cmake_find_compiler_sysroot lang)
+  if(CMAKE_${lang}_COMPILER_ID STREQUAL "GNU")
+    execute_process(COMMAND "${CMAKE_${lang}_COMPILER}" -print-sysroot
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      OUTPUT_VARIABLE _cmake_sysroot_run_out
+      ERROR_VARIABLE _cmake_sysroot_run_err)
+
+    if(_cmake_sysroot_run_out AND NOT _cmake_sysroot_run_err AND IS_DIRECTORY "${_cmake_sysroot_run_out}/usr")
+      set(CMAKE_${lang}_COMPILER_SYSROOT "${_cmake_sysroot_run_out}/usr" PARENT_SCOPE)
+    else()
+      set(CMAKE_${lang}_COMPILER_SYSROOT "" PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()

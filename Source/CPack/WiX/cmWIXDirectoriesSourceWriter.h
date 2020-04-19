@@ -1,23 +1,12 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2014 Kitware, Inc.
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmWIXDirectoriesSourceWriter_h
 #define cmWIXDirectoriesSourceWriter_h
 
-#include "cmWIXSourceWriter.h"
-
-#include <CPack/cmCPackGenerator.h>
-
 #include <string>
+
+#include "cmCPackGenerator.h"
+#include "cmWIXSourceWriter.h"
 
 /** \class cmWIXDirectoriesSourceWriter
  * \brief Helper class to generate directories.wxs
@@ -25,8 +14,8 @@
 class cmWIXDirectoriesSourceWriter : public cmWIXSourceWriter
 {
 public:
-  cmWIXDirectoriesSourceWriter(cmCPackLog* logger,
-    std::string const& filename);
+  cmWIXDirectoriesSourceWriter(cmCPackLog* logger, std::string const& filename,
+                               GuidType componentGuidType);
 
   void EmitStartMenuFolder(std::string const& startMenuFolder);
 
@@ -35,8 +24,8 @@ public:
   void EmitStartupFolder();
 
   size_t BeginInstallationPrefixDirectory(
-      std::string const& programFilesFolderId,
-      std::string const& installRootString);
+    std::string const& programFilesFolderId,
+    std::string const& installRootString);
 
   void EndInstallationPrefixDirectory(size_t size);
 };

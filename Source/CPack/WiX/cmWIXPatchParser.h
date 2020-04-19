@@ -1,24 +1,14 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2013 Kitware, Inc.
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmCPackWIXPatchParser_h
 #define cmCPackWIXPatchParser_h
 
-#include <cmXMLParser.h>
-
-#include <CPack/cmCPackLog.h>
-
 #include <map>
-#include <list>
+#include <memory>
+#include <vector>
+
+#include "cmCPackLog.h"
+#include "cmXMLParser.h"
 
 struct cmWIXPatchNode
 {
@@ -44,10 +34,15 @@ struct cmWIXPatchElement : cmWIXPatchNode
 {
   virtual Type type();
 
+  cmWIXPatchElement();
+
+  cmWIXPatchElement(const cmWIXPatchElement&) = delete;
+  const cmWIXPatchElement& operator=(const cmWIXPatchElement&) = delete;
+
   ~cmWIXPatchElement();
 
-  typedef std::list<cmWIXPatchNode*> child_list_t;
-  typedef std::map<std::string, std::string> attributes_t;
+  using child_list_t = std::vector<std::unique_ptr<cmWIXPatchNode>>;
+  using attributes_t = std::map<std::string, std::string>;
 
   std::string name;
   child_list_t children;
@@ -60,14 +55,14 @@ struct cmWIXPatchElement : cmWIXPatchNode
 class cmWIXPatchParser : public cmXMLParser
 {
 public:
-  typedef std::map<std::string, cmWIXPatchElement> fragment_map_t;
+  using fragment_map_t = std::map<std::string, cmWIXPatchElement>;
 
   cmWIXPatchParser(fragment_map_t& Fragments, cmCPackLog* logger);
 
 private:
-  virtual void StartElement(const std::string& name, const char **atts);
+  virtual void StartElement(const std::string& name, const char** atts);
 
-  void StartFragment(const char **attributes);
+  void StartFragment(const char** attributes);
 
   virtual void EndElement(const std::string& name);
 
@@ -94,7 +89,7 @@ private:
 
   fragment_map_t& Fragments;
 
-  std::list<cmWIXPatchElement*> ElementStack;
+  std::vector<cmWIXPatchElement*> ElementStack;
 };
 
 #endif

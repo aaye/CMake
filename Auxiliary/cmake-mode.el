@@ -1,16 +1,9 @@
 ;;; cmake-mode.el --- major-mode for editing CMake sources
 
-;=============================================================================
-; CMake - Cross Platform Makefile Generator
-; Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-;
-; Distributed under the OSI-approved BSD License (the "License");
-; see accompanying file Copyright.txt for details.
-;
-; This software is distributed WITHOUT ANY WARRANTY; without even the
-; implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-; See the License for more information.
-;=============================================================================
+;; Package-Requires: ((emacs "24.1"))
+
+; Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+; file Copyright.txt or https://cmake.org/licensing for details.
 
 ;------------------------------------------------------------------------------
 
@@ -64,7 +57,7 @@ set the path with these commands:
       (* (or (not (any space "()#\\\n")) (and ?\\ nonl)))))
 (defconst cmake-regex-token
   (rx-to-string `(group (or (regexp ,cmake-regex-comment)
-                            ?( ?)
+                            ?\( ?\)
                             (regexp ,cmake-regex-argument-unquoted)
                             (regexp ,cmake-regex-argument-quoted)))))
 (defconst cmake-regex-indented
@@ -112,6 +105,14 @@ set the path with these commands:
   )
 
 ;------------------------------------------------------------------------------
+
+;;
+;; Indentation increment.
+;;
+(defcustom cmake-tab-width 2
+  "Number of columns to indent cmake blocks"
+  :type 'integer
+  :group 'cmake)
 
 ;;
 ;; Line indentation function.
@@ -225,22 +226,11 @@ the indentation.  Otherwise it retains the same position on the line"
 ;;
 (defvar cmake-mode-hook nil)
 
-;;
-;; Indentation increment.
-;;
-(defvar cmake-tab-width 2)
-
-;------------------------------------------------------------------------------
-
-;; For compatibility with Emacs < 24
-(defalias 'cmake--parent-mode
-  (if (fboundp 'prog-mode) 'prog-mode 'fundamental-mode))
-
 ;;------------------------------------------------------------------------------
 ;; Mode definition.
 ;;
 ;;;###autoload
-(define-derived-mode cmake-mode cmake--parent-mode "CMake"
+(define-derived-mode cmake-mode prog-mode "CMake"
   "Major mode for editing CMake source files."
 
   ; Setup font-lock mode.
@@ -268,7 +258,7 @@ optional argument topic will be appended to the argument list."
     (save-selected-window
       (select-window (display-buffer buffer 'not-this-window))
       (cmake-mode)
-      (toggle-read-only t))
+      (read-only-mode 1))
     )
   )
 
@@ -358,7 +348,7 @@ and store the result as a list in LISTVAR."
 
 ;;;###autoload
 (defun cmake-help ()
-  "Queries for any of the four available help topics and prints out the approriate page."
+  "Queries for any of the four available help topics and prints out the appropriate page."
   (interactive)
   (let* ((default-entry (cmake-symbol-at-point))
          (command-list (cmake-get-list "command"))

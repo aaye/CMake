@@ -1,25 +1,15 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2012-2015 Kitware, Inc.
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmCPackWIXGenerator_h
 #define cmCPackWIXGenerator_h
 
+#include <map>
+#include <memory>
+#include <string>
+
+#include "cmCPackGenerator.h"
 #include "cmWIXPatch.h"
 #include "cmWIXShortcut.h"
-
-#include <CPack/cmCPackGenerator.h>
-
-#include <string>
-#include <map>
 
 class cmWIXSourceWriter;
 class cmWIXDirectoriesSourceWriter;
@@ -35,37 +25,36 @@ public:
   cmCPackTypeMacro(cmCPackWIXGenerator, cmCPackGenerator);
 
   cmCPackWIXGenerator();
+  cmCPackWIXGenerator(const cmCPackWIXGenerator&) = delete;
+  const cmCPackWIXGenerator& operator=(const cmCPackWIXGenerator&) = delete;
   ~cmCPackWIXGenerator();
 
 protected:
-  virtual int InitializeInternal();
+  int InitializeInternal() override;
 
-  virtual int PackageFiles();
+  int PackageFiles() override;
 
-  virtual const char* GetOutputExtension()
-    {
-    return ".msi";
-    }
+  const char* GetOutputExtension() override { return ".msi"; }
 
-  virtual enum CPackSetDestdirSupport SupportsSetDestdir() const
-    {
+  enum CPackSetDestdirSupport SupportsSetDestdir() const override
+  {
     return SETDESTDIR_UNSUPPORTED;
-    }
+  }
 
-  virtual bool SupportsAbsoluteDestination() const
-    {
-    return false;
-    }
+  bool SupportsAbsoluteDestination() const override { return false; }
 
-  virtual bool SupportsComponentInstallation() const
-    {
-    return true;
-    }
+  bool SupportsComponentInstallation() const override { return true; }
 
 private:
-  typedef std::map<std::string, std::string> id_map_t;
-  typedef std::map<std::string, size_t> ambiguity_map_t;
-  typedef std::set<std::string> extension_set_t;
+  using id_map_t = std::map<std::string, std::string>;
+  using ambiguity_map_t = std::map<std::string, size_t>;
+  using extension_set_t = std::set<std::string>;
+
+  enum class DefinitionType
+  {
+    STRING,
+    PATH
+  };
 
   bool InitializeWiXConfiguration();
 
@@ -77,44 +66,37 @@ private:
 
   void CreateWiXProductFragmentIncludeFile();
 
-  void CopyDefinition(
-    cmWIXSourceWriter &source, std::string const& name);
+  void CopyDefinition(cmWIXSourceWriter& source, std::string const& name,
+                      DefinitionType type = DefinitionType::STRING);
 
-  void AddDefinition(cmWIXSourceWriter& source,
-    std::string const& name, std::string const& value);
+  void AddDefinition(cmWIXSourceWriter& source, std::string const& name,
+                     std::string const& value);
 
   bool CreateWiXSourceFiles();
 
-  std::string GetProgramFilesFolderId() const;
+  std::string GetRootFolderId() const;
 
   bool GenerateMainSourceFileFromTemplate();
 
-  bool CreateFeatureHierarchy(
-    cmWIXFeaturesSourceWriter& featureDefinitions);
+  bool CreateFeatureHierarchy(cmWIXFeaturesSourceWriter& featureDefinitions);
 
   bool AddComponentsToFeature(
-    std::string const& rootPath,
-    std::string const& featureId,
+    std::string const& rootPath, std::string const& featureId,
     cmWIXDirectoriesSourceWriter& directoryDefinitions,
     cmWIXFilesSourceWriter& fileDefinitions,
-    cmWIXFeaturesSourceWriter& featureDefinitions,
-    cmWIXShortcuts& shortcuts);
+    cmWIXFeaturesSourceWriter& featureDefinitions, cmWIXShortcuts& shortcuts);
 
-  bool CreateShortcuts(
-    std::string const& cpackComponentName,
-    std::string const& featureId,
-    cmWIXShortcuts const& shortcuts,
-    bool emitUninstallShortcut,
-    cmWIXFilesSourceWriter& fileDefinitions,
-    cmWIXFeaturesSourceWriter& featureDefinitions);
+  bool CreateShortcuts(std::string const& cpackComponentName,
+                       std::string const& featureId,
+                       cmWIXShortcuts const& shortcuts,
+                       bool emitUninstallShortcut,
+                       cmWIXFilesSourceWriter& fileDefinitions,
+                       cmWIXFeaturesSourceWriter& featureDefinitions);
 
   bool CreateShortcutsOfSpecificType(
-    cmWIXShortcuts::Type type,
-    std::string const& cpackComponentName,
-    std::string const& featureId,
-    std::string const& idPrefix,
-    cmWIXShortcuts const& shortcuts,
-    bool emitUninstallShortcut,
+    cmWIXShortcuts::Type type, std::string const& cpackComponentName,
+    std::string const& featureId, std::string const& idPrefix,
+    cmWIXShortcuts const& shortcuts, bool emitUninstallShortcut,
     cmWIXFilesSourceWriter& fileDefinitions,
     cmWIXFeaturesSourceWriter& featureDefinitions);
 
@@ -126,13 +108,13 @@ private:
 
   bool RunWiXCommand(std::string const& command);
 
-  bool RunCandleCommand(
-    std::string const& sourceFile, std::string const& objectFile);
+  bool RunCandleCommand(std::string const& sourceFile,
+                        std::string const& objectFile);
 
   bool RunLightCommand(std::string const& objectFiles);
 
-  void AddDirectoryAndFileDefinitons(std::string const& topdir,
-    std::string const& directoryId,
+  void AddDirectoryAndFileDefinitions(
+    std::string const& topdir, std::string const& directoryId,
     cmWIXDirectoriesSourceWriter& directoryDefinitions,
     cmWIXFilesSourceWriter& fileDefinitions,
     cmWIXFeaturesSourceWriter& featureDefinitions,
@@ -154,22 +136,20 @@ private:
 
   std::string CreateNewIdForPath(std::string const& path);
 
-  static std::string CreateHashedId(
-    std::string const& path, std::string const& normalizedFilename);
+  static std::string CreateHashedId(std::string const& path,
+                                    std::string const& normalizedFilename);
 
-  std::string NormalizeComponentForId(
-    std::string const& component, size_t& replacementCount);
+  std::string NormalizeComponentForId(std::string const& component,
+                                      size_t& replacementCount);
 
   static bool IsLegalIdCharacter(char c);
 
-  void CollectExtensions(
-       std::string const& variableName, extension_set_t& extensions);
+  void CollectExtensions(std::string const& variableName,
+                         extension_set_t& extensions);
 
-  void AddCustomFlags(
-    std::string const& variableName, std::ostream& stream);
+  void AddCustomFlags(std::string const& variableName, std::ostream& stream);
 
-  std::string RelativePathWithoutComponentPrefix(
-    std::string const& path);
+  std::string RelativePathWithoutComponentPrefix(std::string const& path);
 
   std::vector<std::string> WixSources;
   id_map_t PathToIdMap;
@@ -180,7 +160,9 @@ private:
 
   std::string CPackTopLevel;
 
-  cmWIXPatch* Patch;
+  std::unique_ptr<cmWIXPatch> Patch;
+
+  cmWIXSourceWriter::GuidType ComponentGuidType;
 };
 
 #endif

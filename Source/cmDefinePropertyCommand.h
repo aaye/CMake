@@ -1,46 +1,16 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmDefinesPropertyCommand_h
 #define cmDefinesPropertyCommand_h
 
-#include "cmCommand.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmDefinePropertyCommand : public cmCommand
-{
-public:
-  virtual cmCommand* Clone()
-    {
-      return new cmDefinePropertyCommand;
-    }
+#include <string>
+#include <vector>
 
-  /**
-   * This is called when the command is first encountered in
-   * the input file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &status);
+class cmExecutionStatus;
 
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "define_property";}
-
-  cmTypeMacro(cmDefinePropertyCommand, cmCommand);
-private:
-  std::string PropertyName;
-  std::string BriefDocs;
-  std::string FullDocs;
-};
-
-
+bool cmDefinePropertyCommand(std::vector<std::string> const& args,
+                             cmExecutionStatus& status);
 
 #endif

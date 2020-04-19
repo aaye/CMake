@@ -1,17 +1,11 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmCursesDummyWidget_h
 #define cmCursesDummyWidget_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include "cmCursesStandardIncludes.h"
 #include "cmCursesWidget.h"
 
 class cmCursesMainForm;
@@ -21,16 +15,14 @@ class cmCursesDummyWidget : public cmCursesWidget
 public:
   cmCursesDummyWidget(int width, int height, int left, int top);
 
+  cmCursesDummyWidget(cmCursesDummyWidget const&) = delete;
+  cmCursesDummyWidget& operator=(cmCursesDummyWidget const&) = delete;
+
   // Description:
   // Handle user input. Called by the container of this widget
   // when this widget has focus. Returns true if the input was
   // handled.
-  virtual bool HandleInput(int& key, cmCursesMainForm* fm, WINDOW* w);
-
-protected:
-  cmCursesDummyWidget(const cmCursesDummyWidget& from);
-  void operator=(const cmCursesDummyWidget&);
-
+  bool HandleInput(int& key, cmCursesMainForm* fm, WINDOW* w) override;
 };
 
 #endif // cmCursesDummyWidget_h

@@ -1,41 +1,16 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2013 Stephen Kelly <steveire@gmail.com>
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmTargetCompileFeaturesCommand_h
 #define cmTargetCompileFeaturesCommand_h
 
-#include "cmTargetPropCommandBase.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmTargetCompileFeaturesCommand : public cmTargetPropCommandBase
-{
-  virtual cmCommand* Clone()
-    {
-    return new cmTargetCompileFeaturesCommand;
-    }
+#include <string>
+#include <vector>
 
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &status);
+class cmExecutionStatus;
 
-  virtual std::string GetName() const { return "target_compile_features";}
-
-  cmTypeMacro(cmTargetCompileFeaturesCommand, cmTargetPropCommandBase);
-
-private:
-  virtual void HandleImportedTarget(const std::string &tgt);
-  virtual void HandleMissingTarget(const std::string &name);
-
-  virtual bool HandleDirectContent(cmTarget *tgt,
-                                   const std::vector<std::string> &content,
-                                   bool prepend, bool system);
-  virtual std::string Join(const std::vector<std::string> &content);
-};
+bool cmTargetCompileFeaturesCommand(std::vector<std::string> const& args,
+                                    cmExecutionStatus& status);
 
 #endif

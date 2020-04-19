@@ -1,31 +1,53 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmPropertyMap_h
 #define cmPropertyMap_h
 
-#include "cmProperty.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmPropertyMap : public std::map<std::string,cmProperty>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+using cmProp = const std::string*;
+
+/** \class cmPropertyMap
+ * \brief String property map.
+ */
+class cmPropertyMap
 {
 public:
-  cmProperty *GetOrCreateProperty(const std::string& name);
+  // -- General
 
-  void SetProperty(const std::string& name, const char *value);
+  //! Clear property list
+  void Clear();
 
-  void AppendProperty(const std::string& name, const char* value,
-                      bool asString=false);
+  // -- Properties
 
-  const char *GetPropertyValue(const std::string& name) const;
+  //! Set the property value
+  void SetProperty(const std::string& name, const char* value);
+
+  //! Append to the property value
+  void AppendProperty(const std::string& name, const std::string& value,
+                      bool asString = false);
+
+  //! Get the property value
+  cmProp GetPropertyValue(const std::string& name) const;
+
+  //! Remove the property @a name from the map
+  void RemoveProperty(const std::string& name);
+
+  // -- Lists
+
+  //! Get a sorted list of property keys
+  std::vector<std::string> GetKeys() const;
+
+  //! Get a sorted by key list of property key,value pairs
+  std::vector<std::pair<std::string, std::string>> GetList() const;
+
+private:
+  std::unordered_map<std::string, std::string> Map_;
 };
 
 #endif
-

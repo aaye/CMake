@@ -1,27 +1,22 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmComputeTargetDepends_h
 #define cmComputeTargetDepends_h
 
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "cmGraphAdjacencyList.h"
-
-#include <stack>
+#include "cmListFileCache.h"
 
 class cmComputeComponentGraph;
+class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmLinkItem;
-class cmGeneratorTarget;
 class cmTargetDependSet;
 
 /** \class cmComputeTargetDepends
@@ -39,27 +34,31 @@ public:
 
   bool Compute();
 
-  std::vector<cmGeneratorTarget const*> const&
-  GetTargets() const { return this->Targets; }
+  std::vector<cmGeneratorTarget const*> const& GetTargets() const
+  {
+    return this->Targets;
+  }
   void GetTargetDirectDepends(cmGeneratorTarget const* t,
                               cmTargetDependSet& deps);
+
 private:
   void CollectTargets();
   void CollectDepends();
   void CollectTargetDepends(int depender_index);
-  void AddTargetDepend(int depender_index,
-                       cmLinkItem const& dependee_name,
-                       bool linking);
+  void AddTargetDepend(int depender_index, cmLinkItem const& dependee_name,
+                       bool linking, bool cross);
   void AddTargetDepend(int depender_index, cmGeneratorTarget const* dependee,
-                       bool linking);
+                       cmListFileBacktrace const& dependee_backtrace,
+                       bool linking, bool cross);
   bool ComputeFinalDepends(cmComputeComponentGraph const& ccg);
-  void AddInterfaceDepends(int depender_index,
-                           cmLinkItem const& dependee_name,
-                           std::set<std::string> &emitted);
+  void AddInterfaceDepends(int depender_index, cmLinkItem const& dependee_name,
+                           const std::string& config,
+                           std::set<cmLinkItem>& emitted);
   void AddInterfaceDepends(int depender_index,
                            cmGeneratorTarget const* dependee,
+                           cmListFileBacktrace const& dependee_backtrace,
                            const std::string& config,
-                           std::set<std::string> &emitted);
+                           std::set<cmLinkItem>& emitted);
   cmGlobalGenerator* GlobalGenerator;
   bool DebugMode;
   bool NoCycles;
@@ -71,9 +70,9 @@ private:
   // Represent the target dependency graph.  The entry at each
   // top-level index corresponds to a depender whose dependencies are
   // listed.
-  typedef cmGraphNodeList NodeList;
-  typedef cmGraphEdgeList EdgeList;
-  typedef cmGraphAdjacencyList Graph;
+  using NodeList = cmGraphNodeList;
+  using EdgeList = cmGraphEdgeList;
+  using Graph = cmGraphAdjacencyList;
   Graph InitialGraph;
   Graph FinalGraph;
   void DisplayGraph(Graph const& graph, const std::string& name);

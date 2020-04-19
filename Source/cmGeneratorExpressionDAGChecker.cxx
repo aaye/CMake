@@ -1,245 +1,258 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2012 Stephen Kelly <steveire@gmail.com>
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratorExpressionDAGChecker.h"
 
+#include <cstring>
+#include <sstream>
+#include <utility>
+
+#include <cm/string_view>
+
+#include "cm_static_string_view.hxx"
+
+#include "cmGeneratorExpressionContext.h"
+#include "cmGeneratorExpressionEvaluator.h"
+#include "cmGeneratorTarget.h"
 #include "cmLocalGenerator.h"
-#include "cmAlgorithms.h"
+#include "cmMessageType.h"
+#include "cmStringAlgorithms.h"
+#include "cmake.h"
 
-//----------------------------------------------------------------------------
 cmGeneratorExpressionDAGChecker::cmGeneratorExpressionDAGChecker(
-                const cmListFileBacktrace &backtrace,
-                const std::string &target,
-                const std::string &property,
-                const GeneratorExpressionContent *content,
-                cmGeneratorExpressionDAGChecker *parent)
-  : Parent(parent), Target(target), Property(property),
-    Content(content), Backtrace(backtrace), TransitivePropertiesOnly(false)
+  cmListFileBacktrace backtrace, cmGeneratorTarget const* target,
+  std::string property, const GeneratorExpressionContent* content,
+  cmGeneratorExpressionDAGChecker* parent)
+  : Parent(parent)
+  , Target(target)
+  , Property(std::move(property))
+  , Content(content)
+  , Backtrace(std::move(backtrace))
+  , TransitivePropertiesOnly(false)
 {
   Initialize();
 }
 
-//----------------------------------------------------------------------------
 cmGeneratorExpressionDAGChecker::cmGeneratorExpressionDAGChecker(
-                const std::string &target,
-                const std::string &property,
-                const GeneratorExpressionContent *content,
-                cmGeneratorExpressionDAGChecker *parent)
-  : Parent(parent), Target(target), Property(property),
-    Content(content), Backtrace(), TransitivePropertiesOnly(false)
+  cmGeneratorTarget const* target, std::string property,
+  const GeneratorExpressionContent* content,
+  cmGeneratorExpressionDAGChecker* parent)
+  : Parent(parent)
+  , Target(target)
+  , Property(std::move(property))
+  , Content(content)
+  , Backtrace()
+  , TransitivePropertiesOnly(false)
 {
   Initialize();
 }
 
-//----------------------------------------------------------------------------
-void
-cmGeneratorExpressionDAGChecker::Initialize()
+void cmGeneratorExpressionDAGChecker::Initialize()
 {
-  const cmGeneratorExpressionDAGChecker *top = this;
-  const cmGeneratorExpressionDAGChecker *p = this->Parent;
-  while (p)
-    {
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* p = this->Parent;
+  while (p) {
     top = p;
     p = p->Parent;
-    }
+  }
   this->CheckResult = this->CheckGraph();
 
-#define TEST_TRANSITIVE_PROPERTY_METHOD(METHOD) \
-  top->METHOD () ||
+#define TEST_TRANSITIVE_PROPERTY_METHOD(METHOD) top->METHOD() ||
 
-  if (CheckResult == DAG && (
-      CM_FOR_EACH_TRANSITIVE_PROPERTY_METHOD(TEST_TRANSITIVE_PROPERTY_METHOD)
-      false)
-     )
+  if (CheckResult == DAG &&
+      (CM_FOR_EACH_TRANSITIVE_PROPERTY_METHOD(
+        TEST_TRANSITIVE_PROPERTY_METHOD) false)) // NOLINT(*)
 #undef TEST_TRANSITIVE_PROPERTY_METHOD
-    {
-    std::map<std::string, std::set<std::string> >::const_iterator it
-                                              = top->Seen.find(this->Target);
-    if (it != top->Seen.end())
-      {
-      const std::set<std::string> &propSet = it->second;
-      if (propSet.find(this->Property) != propSet.end())
-        {
+  {
+    auto it = top->Seen.find(this->Target);
+    if (it != top->Seen.end()) {
+      const std::set<std::string>& propSet = it->second;
+      if (propSet.find(this->Property) != propSet.end()) {
         this->CheckResult = ALREADY_SEEN;
         return;
-        }
       }
-    const_cast<cmGeneratorExpressionDAGChecker *>(top)
-      ->Seen[this->Target].insert(this->Property);
     }
+    top->Seen[this->Target].insert(this->Property);
+  }
 }
 
-//----------------------------------------------------------------------------
 cmGeneratorExpressionDAGChecker::Result
 cmGeneratorExpressionDAGChecker::Check() const
 {
   return this->CheckResult;
 }
 
-//----------------------------------------------------------------------------
 void cmGeneratorExpressionDAGChecker::ReportError(
-                  cmGeneratorExpressionContext *context,
-                  const std::string &expr)
+  cmGeneratorExpressionContext* context, const std::string& expr)
 {
-  if (this->CheckResult == DAG)
-    {
+  if (this->CheckResult == DAG) {
     return;
-    }
+  }
 
   context->HadError = true;
-  if (context->Quiet)
-    {
+  if (context->Quiet) {
     return;
-    }
+  }
 
-  const cmGeneratorExpressionDAGChecker *parent = this->Parent;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
 
-  if (parent && !parent->Parent)
-    {
+  if (parent && !parent->Parent) {
     std::ostringstream e;
     e << "Error evaluating generator expression:\n"
       << "  " << expr << "\n"
-      << "Self reference on target \""
-      << context->HeadTarget->GetName() << "\".\n";
-    context->LG->GetCMakeInstance()
-      ->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                      parent->Backtrace);
+      << "Self reference on target \"" << context->HeadTarget->GetName()
+      << "\".\n";
+    context->LG->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR,
+                                                  e.str(), parent->Backtrace);
     return;
-    }
+  }
 
   {
-  std::ostringstream e;
+    std::ostringstream e;
+    /* clang-format off */
   e << "Error evaluating generator expression:\n"
     << "  " << expr << "\n"
     << "Dependency loop found.";
-  context->LG->GetCMakeInstance()
-    ->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                    context->Backtrace);
+    /* clang-format on */
+    context->LG->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR,
+                                                  e.str(), context->Backtrace);
   }
 
   int loopStep = 1;
-  while (parent)
-    {
+  while (parent) {
     std::ostringstream e;
     e << "Loop step " << loopStep << "\n"
       << "  "
       << (parent->Content ? parent->Content->GetOriginalExpression() : expr)
       << "\n";
-    context->LG->GetCMakeInstance()
-      ->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                      parent->Backtrace);
+    context->LG->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR,
+                                                  e.str(), parent->Backtrace);
     parent = parent->Parent;
     ++loopStep;
-    }
+  }
 }
 
-//----------------------------------------------------------------------------
 cmGeneratorExpressionDAGChecker::Result
 cmGeneratorExpressionDAGChecker::CheckGraph() const
 {
-  const cmGeneratorExpressionDAGChecker *parent = this->Parent;
-  while (parent)
-    {
-    if (this->Target == parent->Target && this->Property == parent->Property)
-      {
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
+    if (this->Target == parent->Target && this->Property == parent->Property) {
       return (parent == this->Parent) ? SELF_REFERENCE : CYCLIC_REFERENCE;
-      }
-    parent = parent->Parent;
     }
+    parent = parent->Parent;
+  }
   return DAG;
 }
 
-//----------------------------------------------------------------------------
 bool cmGeneratorExpressionDAGChecker::GetTransitivePropertiesOnly()
 {
-  const cmGeneratorExpressionDAGChecker *top = this;
-  const cmGeneratorExpressionDAGChecker *parent = this->Parent;
-  while (parent)
-    {
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
     top = parent;
     parent = parent->Parent;
-    }
+  }
 
   return top->TransitivePropertiesOnly;
 }
 
-//----------------------------------------------------------------------------
-bool cmGeneratorExpressionDAGChecker::EvaluatingLinkLibraries(const char *tgt)
+bool cmGeneratorExpressionDAGChecker::EvaluatingGenexExpression()
 {
-  const cmGeneratorExpressionDAGChecker *top = this;
-  const cmGeneratorExpressionDAGChecker *parent = this->Parent;
-  while (parent)
-    {
-    top = parent;
-    parent = parent->Parent;
-    }
-
-  const char *prop = top->Property.c_str();
-
-  if (tgt)
-    {
-    return top->Target == tgt && strcmp(prop, "LINK_LIBRARIES") == 0;
-    }
-
-  return (strcmp(prop, "LINK_LIBRARIES") == 0
-       || strcmp(prop, "LINK_INTERFACE_LIBRARIES") == 0
-       || strcmp(prop, "IMPORTED_LINK_INTERFACE_LIBRARIES") == 0
-       || cmHasLiteralPrefix(prop, "LINK_INTERFACE_LIBRARIES_")
-       || cmHasLiteralPrefix(prop, "IMPORTED_LINK_INTERFACE_LIBRARIES_"))
-       || strcmp(prop, "INTERFACE_LINK_LIBRARIES") == 0;
+  return cmHasLiteralPrefix(this->Property, "TARGET_GENEX_EVAL:") ||
+    cmHasLiteralPrefix(this->Property, "GENEX_EVAL:");
 }
 
-std::string cmGeneratorExpressionDAGChecker::TopTarget() const
+bool cmGeneratorExpressionDAGChecker::EvaluatingPICExpression()
 {
-  const cmGeneratorExpressionDAGChecker *top = this;
-  const cmGeneratorExpressionDAGChecker *parent = this->Parent;
-  while (parent)
-    {
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
     top = parent;
     parent = parent->Parent;
-    }
+  }
+
+  return top->Property == "INTERFACE_POSITION_INDEPENDENT_CODE";
+}
+
+bool cmGeneratorExpressionDAGChecker::EvaluatingLinkExpression()
+{
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
+    top = parent;
+    parent = parent->Parent;
+  }
+
+  cm::string_view property(top->Property);
+
+  return property == "LINK_DIRECTORIES"_s || property == "LINK_OPTIONS"_s ||
+    property == "LINK_DEPENDS"_s;
+}
+
+bool cmGeneratorExpressionDAGChecker::EvaluatingLinkLibraries(
+  cmGeneratorTarget const* tgt)
+{
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
+    top = parent;
+    parent = parent->Parent;
+  }
+
+  cm::string_view prop(top->Property);
+
+  if (tgt) {
+    return top->Target == tgt && prop == "LINK_LIBRARIES"_s;
+  }
+
+  return prop == "LINK_LIBRARIES"_s || prop == "LINK_INTERFACE_LIBRARIES"_s ||
+    prop == "IMPORTED_LINK_INTERFACE_LIBRARIES"_s ||
+    cmHasLiteralPrefix(prop, "LINK_INTERFACE_LIBRARIES_") ||
+    cmHasLiteralPrefix(prop, "IMPORTED_LINK_INTERFACE_LIBRARIES_") ||
+    prop == "INTERFACE_LINK_LIBRARIES"_s;
+}
+
+cmGeneratorTarget const* cmGeneratorExpressionDAGChecker::TopTarget() const
+{
+  const cmGeneratorExpressionDAGChecker* top = this;
+  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
+  while (parent) {
+    top = parent;
+    parent = parent->Parent;
+  }
   return top->Target;
 }
 
-enum TransitiveProperty {
+enum TransitiveProperty
+{
 #define DEFINE_ENUM_ENTRY(NAME) NAME,
   CM_FOR_EACH_TRANSITIVE_PROPERTY_NAME(DEFINE_ENUM_ENTRY)
 #undef DEFINE_ENUM_ENTRY
-  TransitivePropertyTerminal
+    TransitivePropertyTerminal
 };
 
-template<TransitiveProperty>
-bool additionalTest(const char* const)
+template <TransitiveProperty>
+bool additionalTest(const char* const /*unused*/)
 {
   return false;
 }
 
-template<>
+template <>
 bool additionalTest<COMPILE_DEFINITIONS>(const char* const prop)
 {
   return cmHasLiteralPrefix(prop, "COMPILE_DEFINITIONS_");
 }
 
-#define DEFINE_TRANSITIVE_PROPERTY_METHOD(METHOD, PROPERTY) \
-bool cmGeneratorExpressionDAGChecker::METHOD() const \
-{ \
-  const char* const prop = this->Property.c_str(); \
-  if (strcmp(prop, #PROPERTY) == 0 \
-      || strcmp(prop, "INTERFACE_" #PROPERTY) == 0) \
-    { \
-    return true; \
-    } \
-  return additionalTest<PROPERTY>(prop); \
-}
+#define DEFINE_TRANSITIVE_PROPERTY_METHOD(METHOD, PROPERTY)                   \
+  bool cmGeneratorExpressionDAGChecker::METHOD() const                        \
+  {                                                                           \
+    const char* const prop = this->Property.c_str();                          \
+    if (strcmp(prop, #PROPERTY) == 0 ||                                       \
+        strcmp(prop, "INTERFACE_" #PROPERTY) == 0) {                          \
+      return true;                                                            \
+    }                                                                         \
+    return additionalTest<PROPERTY>(prop);                                    \
+  }
 
 CM_FOR_EACH_TRANSITIVE_PROPERTY(DEFINE_TRANSITIVE_PROPERTY_METHOD)
 

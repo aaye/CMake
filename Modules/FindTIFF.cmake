@@ -1,54 +1,44 @@
-#.rst:
-# FindTIFF
-# --------
-#
-# Find the TIFF library (libtiff).
-#
-# Imported targets
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines the following :prop_tgt:`IMPORTED` targets:
-#
-# ``TIFF::TIFF``
-#   The TIFF library, if found.
-#
-# Result variables
-# ^^^^^^^^^^^^^^^^
-#
-# This module will set the following variables in your project:
-#
-# ``TIFF_FOUND``
-#   true if the TIFF headers and libraries were found
-# ``TIFF_INCLUDE_DIR``
-#   the directory containing the TIFF headers
-# ``TIFF_INCLUDE_DIRS``
-#   the directory containing the TIFF headers
-# ``TIFF_LIBRARIES``
-#   TIFF libraries to be linked
-#
-# Cache variables
-# ^^^^^^^^^^^^^^^
-#
-# The following cache variables may also be set:
-#
-# ``TIFF_INCLUDE_DIR``
-#   the directory containing the TIFF headers
-# ``TIFF_LIBRARY``
-#   the path to the TIFF library
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2002-2009 Kitware, Inc.
-# Copyright 2015 University of Dundee
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindTIFF
+--------
+
+Find the TIFF library (``libtiff``).
+
+Imported targets
+^^^^^^^^^^^^^^^^
+
+This module defines the following :prop_tgt:`IMPORTED` targets:
+
+``TIFF::TIFF``
+  The TIFF library, if found.
+
+Result variables
+^^^^^^^^^^^^^^^^
+
+This module will set the following variables in your project:
+
+``TIFF_FOUND``
+  true if the TIFF headers and libraries were found
+``TIFF_INCLUDE_DIR``
+  the directory containing the TIFF headers
+``TIFF_INCLUDE_DIRS``
+  the directory containing the TIFF headers
+``TIFF_LIBRARIES``
+  TIFF libraries to be linked
+
+Cache variables
+^^^^^^^^^^^^^^^
+
+The following cache variables may also be set:
+
+``TIFF_INCLUDE_DIR``
+  the directory containing the TIFF headers
+``TIFF_LIBRARY``
+  the path to the TIFF library
+#]=======================================================================]
 
 find_path(TIFF_INCLUDE_DIR tiff.h)
 
@@ -76,8 +66,6 @@ if(TIFF_INCLUDE_DIR AND EXISTS "${TIFF_INCLUDE_DIR}/tiffvers.h")
     unset(tiff_version_str)
 endif()
 
-# handle the QUIETLY and REQUIRED arguments and set TIFF_FOUND to TRUE if
-# all listed variables are TRUE
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(TIFF
                                   REQUIRED_VARS TIFF_LIBRARY TIFF_INCLUDE_DIR
@@ -98,19 +86,19 @@ if(TIFF_FOUND)
         IMPORTED_LINK_INTERFACE_LANGUAGES "C"
         IMPORTED_LOCATION "${TIFF_LIBRARY}")
     endif()
-    if(EXISTS "${TIFF_LIBRARY_DEBUG}")
-      set_property(TARGET TIFF::TIFF APPEND PROPERTY
-        IMPORTED_CONFIGURATIONS DEBUG)
-      set_target_properties(TIFF::TIFF PROPERTIES
-        IMPORTED_LINK_INTERFACE_LANGUAGES_DEBUG "C"
-        IMPORTED_LOCATION_DEBUG "${TIFF_LIBRARY_DEBUG}")
-    endif()
     if(EXISTS "${TIFF_LIBRARY_RELEASE}")
       set_property(TARGET TIFF::TIFF APPEND PROPERTY
         IMPORTED_CONFIGURATIONS RELEASE)
       set_target_properties(TIFF::TIFF PROPERTIES
         IMPORTED_LINK_INTERFACE_LANGUAGES_RELEASE "C"
         IMPORTED_LOCATION_RELEASE "${TIFF_LIBRARY_RELEASE}")
+    endif()
+    if(EXISTS "${TIFF_LIBRARY_DEBUG}")
+      set_property(TARGET TIFF::TIFF APPEND PROPERTY
+        IMPORTED_CONFIGURATIONS DEBUG)
+      set_target_properties(TIFF::TIFF PROPERTIES
+        IMPORTED_LINK_INTERFACE_LANGUAGES_DEBUG "C"
+        IMPORTED_LOCATION_DEBUG "${TIFF_LIBRARY_DEBUG}")
     endif()
   endif()
 endif()
