@@ -1,57 +1,46 @@
-#.rst:
-# FindHg
-# ------
-#
-# Extract information from a mercurial working copy.
-#
-# The module defines the following variables:
-#
-# ::
-#
-#    HG_EXECUTABLE - path to mercurial command line client (hg)
-#    HG_FOUND - true if the command line client was found
-#    HG_VERSION_STRING - the version of mercurial found
-#
-# If the command line client executable is found the following macro is defined:
-#
-# ::
-#
-#   HG_WC_INFO(<dir> <var-prefix>)
-#
-# Hg_WC_INFO extracts information of a mercurial working copy
-# at a given location.  This macro defines the following variables:
-#
-# ::
-#
-#   <var-prefix>_WC_CHANGESET - current changeset
-#   <var-prefix>_WC_REVISION - current revision
-#
-# Example usage:
-#
-# ::
-#
-#    find_package(Hg)
-#    if(HG_FOUND)
-#      message("hg found: ${HG_EXECUTABLE}")
-#      HG_WC_INFO(${PROJECT_SOURCE_DIR} Project)
-#      message("Current revision is ${Project_WC_REVISION}")
-#      message("Current changeset is ${Project_WC_CHANGESET}")
-#    endif()
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2010-2012 Kitware, Inc.
-# Copyright 2012      Rolf Eike Beer <eike@sf-mail.de>
-# Copyright 2014      Matthaeus G. Chajdas
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindHg
+------
+
+Extract information from a mercurial working copy.
+
+The module defines the following variables:
+
+::
+
+   HG_EXECUTABLE - path to mercurial command line client (hg)
+   HG_FOUND - true if the command line client was found
+   HG_VERSION_STRING - the version of mercurial found
+
+If the command line client executable is found the following macro is defined:
+
+::
+
+  HG_WC_INFO(<dir> <var-prefix>)
+
+Hg_WC_INFO extracts information of a mercurial working copy
+at a given location.  This macro defines the following variables:
+
+::
+
+  <var-prefix>_WC_CHANGESET - current changeset
+  <var-prefix>_WC_REVISION - current revision
+
+Example usage:
+
+::
+
+   find_package(Hg)
+   if(HG_FOUND)
+     message("hg found: ${HG_EXECUTABLE}")
+     HG_WC_INFO(${PROJECT_SOURCE_DIR} Project)
+     message("Current revision is ${Project_WC_REVISION}")
+     message("Current changeset is ${Project_WC_CHANGESET}")
+   endif()
+#]=======================================================================]
 
 find_program(HG_EXECUTABLE
   NAMES hg
@@ -102,8 +91,6 @@ if(HG_EXECUTABLE)
   endmacro(HG_WC_INFO)
 endif()
 
-# Handle the QUIETLY and REQUIRED arguments and set HG_FOUND to TRUE if
-# all listed variables are TRUE
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package_handle_standard_args(Hg
                                   REQUIRED_VARS HG_EXECUTABLE

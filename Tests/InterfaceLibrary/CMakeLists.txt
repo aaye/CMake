@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 2.8)
 
 project(InterfaceLibrary)
 
+set(cfg_dir)
+get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(_isMultiConfig)
+  set(cfg_dir /$<CONFIG>)
+endif()
+
 add_library(iface_nodepends INTERFACE)
 target_compile_definitions(iface_nodepends INTERFACE IFACE_DEFINE)
 
@@ -25,10 +31,29 @@ target_sources(iface_objlib INTERFACE $<TARGET_OBJECTS:objlib>)
 add_library(intermediate INTERFACE)
 target_link_libraries(intermediate INTERFACE iface_objlib)
 
+add_library(item_fake_tgt STATIC item_fake.cpp)
+set_property(TARGET item_fake_tgt PROPERTY OUTPUT_NAME item_fake)
+add_library(item_real STATIC item.cpp)
+add_library(item_iface INTERFACE IMPORTED)
+set_property(TARGET item_iface PROPERTY IMPORTED_LIBNAME item_real)
+add_dependencies(item_iface item_real)
+get_property(item_iface_dependencies TARGET item_iface PROPERTY MANUALLY_ADDED_DEPENDENCIES)
+link_directories(${CMAKE_CURRENT_BINARY_DIR}${cfg_dir})
+
 add_executable(InterfaceLibrary definetestexe.cpp)
-target_link_libraries(InterfaceLibrary iface_nodepends headeriface subiface intermediate)
+target_link_libraries(InterfaceLibrary
+  iface_nodepends
+  headeriface
+  subiface
+  intermediate
+
+  item_iface
+  item_fake # ensure that 'item_real' is ordered in place of item_iface
+  )
+add_dependencies(InterfaceLibrary item_fake_tgt)
 
 add_subdirectory(libsdir)
+add_subdirectory(excluded EXCLUDE_FROM_ALL)
 
 add_executable(sharedlibtestexe sharedlibtestexe.cpp)
 target_link_libraries(sharedlibtestexe shared_iface imported::iface)

@@ -1,20 +1,20 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmFindCommon_h
 #define cmFindCommon_h
 
-#include "cmCommand.h"
-#include "cmSearchPath.h"
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "cmPathLabel.h"
+#include "cmSearchPath.h"
+
+class cmExecutionStatus;
+class cmMakefile;
 
 /** \class cmFindCommon
  * \brief Base class for FIND_XXX implementations.
@@ -23,23 +23,30 @@
  * cmFindProgramCommand, cmFindPathCommand, cmFindLibraryCommand,
  * cmFindFileCommand, and cmFindPackageCommand.
  */
-class cmFindCommon : public cmCommand
+class cmFindCommon
 {
 public:
-  cmFindCommon();
-  ~cmFindCommon();
-  cmTypeMacro(cmFindCommon, cmCommand);
+  cmFindCommon(cmExecutionStatus& status);
+
+  void SetError(std::string const& e);
+
+  bool DebugModeEnabled() const { return this->DebugMode; }
 
 protected:
   friend class cmSearchPath;
+  friend class cmFindBaseDebugState;
 
   /** Used to define groups of path labels */
   class PathGroup : public cmPathLabel
   {
   protected:
     PathGroup();
+
   public:
-    PathGroup(const std::string& label) : cmPathLabel(label) { }
+    PathGroup(const std::string& label)
+      : cmPathLabel(label)
+    {
+    }
     static PathGroup All;
   };
 
@@ -48,8 +55,13 @@ protected:
   {
   protected:
     PathLabel();
+
   public:
-    PathLabel(const std::string& label) : cmPathLabel(label) { }
+    PathLabel(const std::string& label)
+      : cmPathLabel(label)
+    {
+    }
+    static PathLabel PackageRoot;
     static PathLabel CMake;
     static PathLabel CMakeEnvironment;
     static PathLabel Hints;
@@ -58,9 +70,12 @@ protected:
     static PathLabel Guess;
   };
 
-  enum RootPathMode { RootPathModeNever,
-                      RootPathModeOnly,
-                      RootPathModeBoth };
+  enum RootPathMode
+  {
+    RootPathModeNever,
+    RootPathModeOnly,
+    RootPathModeBoth
+  };
 
   /** Construct the various path groups and labels */
   void InitializeSearchPathGroups();
@@ -72,11 +87,6 @@ protected:
   void GetIgnoredPaths(std::vector<std::string>& ignore);
   void GetIgnoredPaths(std::set<std::string>& ignore);
 
-  /** Remove paths in the ignore set from the supplied vector.  */
-  void FilterPaths(const std::vector<std::string>& inPaths,
-                   const std::set<std::string>& ignore,
-                   std::vector<std::string>& outPaths);
-
   /** Compute final search path list (reroot + trailing slash).  */
   void ComputeFinalPaths();
 
@@ -85,6 +95,13 @@ protected:
 
   /** Compute the current default bundle/framework search policy.  */
   void SelectDefaultMacMode();
+
+  /** Compute the current default search modes based on global variables.  */
+  void SelectDefaultSearchModes();
+
+  /** The `InitialPass` functions of the child classes should set
+      this->DebugMode to the result of this.  */
+  bool ComputeIfDebugModeWanted();
 
   // Path arguments prior to path manipulation routines
   std::vector<std::string> UserHintsArgs;
@@ -95,9 +112,11 @@ protected:
 
   bool CheckCommonArgument(std::string const& arg);
   void AddPathSuffix(std::string const& arg);
-  void SetMakefile(cmMakefile* makefile);
 
+  void DebugMessage(std::string const& msg) const;
+  bool DebugMode;
   bool NoDefaultPath;
+  bool NoPackageRootPath;
   bool NoCMakePath;
   bool NoCMakeEnvironmentPath;
   bool NoSystemEnvironmentPath;
@@ -105,7 +124,7 @@ protected:
 
   std::vector<std::string> SearchPathSuffixes;
 
-  std::map<PathGroup, std::vector<PathLabel> > PathGroupLabelMap;
+  std::map<PathGroup, std::vector<PathLabel>> PathGroupLabelMap;
   std::vector<PathGroup> PathGroupOrder;
   std::map<std::string, PathLabel> PathLabelStringMap;
   std::map<PathLabel, cmSearchPath> LabeledPaths;
@@ -120,6 +139,9 @@ protected:
   bool SearchAppBundleFirst;
   bool SearchAppBundleOnly;
   bool SearchAppBundleLast;
+
+  cmMakefile* Makefile;
+  cmExecutionStatus& Status;
 };
 
 #endif

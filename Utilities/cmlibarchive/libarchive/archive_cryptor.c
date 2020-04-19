@@ -31,6 +31,19 @@
 #include "archive.h"
 #include "archive_cryptor_private.h"
 
+/*
+ * On systems that do not support any recognized crypto libraries,
+ * this file will normally define no usable symbols.
+ *
+ * But some compilers and linkers choke on empty object files, so
+ * define a public symbol that will always exist.  This could
+ * be removed someday if this file gains another always-present
+ * symbol definition.
+ */
+int __libarchive_cryptor_build_hack(void) {
+	return 0;
+}
+
 #ifdef ARCHIVE_CRYPTOR_USE_Apple_CommonCrypto
 
 static int
@@ -70,6 +83,35 @@ pbkdf2_sha1(const char *pw, size_t pw_len, const uint8_t *salt,
 	BCryptCloseAlgorithmProvider(hAlg, 0);
 
 	return (BCRYPT_SUCCESS(status)) ? 0: -1;
+}
+
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_PKCS5_H)
+
+static int
+pbkdf2_sha1(const char *pw, size_t pw_len, const uint8_t *salt,
+    size_t salt_len, unsigned rounds, uint8_t *derived_key,
+    size_t derived_key_len)
+{
+	mbedtls_md_context_t ctx;
+	const mbedtls_md_info_t *info;
+	int ret;
+
+	mbedtls_md_init(&ctx);
+	info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+	if (info == NULL) {
+		mbedtls_md_free(&ctx);
+		return (-1);
+	}
+	ret = mbedtls_md_setup(&ctx, info, 1);
+	if (ret != 0) {
+		mbedtls_md_free(&ctx);
+		return (-1);
+	}
+	ret = mbedtls_pkcs5_pbkdf2_hmac(&ctx, (const unsigned char *)pw,
+	    pw_len, salt, salt_len, rounds, derived_key_len, derived_key);
+
+	mbedtls_md_free(&ctx);
+	return (ret);
 }
 
 #elif defined(HAVE_LIBNETTLE) && defined(HAVE_NETTLE_PBKDF2_H)
@@ -140,7 +182,7 @@ aes_ctr_encrypt_counter(archive_crypto_ctx *ctx)
 	CCCryptorStatus r;
 
 	r = CCCryptorReset(ref, NULL);
-	if (r != kCCSuccess)
+	if (r != kCCSuccess && r != kCCUnimplemented)
 		return -1;
 	r = CCCryptorUpdate(ref, ctx->nonce, AES_BLOCK_SIZE, ctx->encr_buf,
 	    AES_BLOCK_SIZE, NULL);
@@ -256,7 +298,40 @@ aes_ctr_release(archive_crypto_ctx *ctx)
 	return 0;
 }
 
-#elif defined(HAVE_LIBNETTLE)
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_AES_H)
+
+static int
+aes_ctr_init(archive_crypto_ctx *ctx, const uint8_t *key, size_t key_len)
+{
+	mbedtls_aes_init(&ctx->ctx);
+	ctx->key_len = key_len;
+	memcpy(ctx->key, key, key_len);
+	memset(ctx->nonce, 0, sizeof(ctx->nonce));
+	ctx->encr_pos = AES_BLOCK_SIZE;
+	return 0;
+}
+
+static int
+aes_ctr_encrypt_counter(archive_crypto_ctx *ctx)
+{
+	if (mbedtls_aes_setkey_enc(&ctx->ctx, ctx->key,
+	    ctx->key_len * 8) != 0)
+		return (-1);
+	if (mbedtls_aes_crypt_ecb(&ctx->ctx, MBEDTLS_AES_ENCRYPT, ctx->nonce,
+	    ctx->encr_buf) != 0)
+		return (-1);
+	return 0;
+}
+
+static int
+aes_ctr_release(archive_crypto_ctx *ctx)
+{
+	mbedtls_aes_free(&ctx->ctx);
+	memset(ctx, 0, sizeof(*ctx));
+	return 0;
+}
+
+#elif defined(HAVE_LIBNETTLE) && defined(HAVE_NETTLE_AES_H)
 
 static int
 aes_ctr_init(archive_crypto_ctx *ctx, const uint8_t *key, size_t key_len)
@@ -289,6 +364,8 @@ aes_ctr_release(archive_crypto_ctx *ctx)
 static int
 aes_ctr_init(archive_crypto_ctx *ctx, const uint8_t *key, size_t key_len)
 {
+	if ((ctx->ctx = EVP_CIPHER_CTX_new()) == NULL)
+		return -1;
 
 	switch (key_len) {
 	case 16: ctx->type = EVP_aes_128_ecb(); break;
@@ -301,7 +378,14 @@ aes_ctr_init(archive_crypto_ctx *ctx, const uint8_t *key, size_t key_len)
 	memcpy(ctx->key, key, key_len);
 	memset(ctx->nonce, 0, sizeof(ctx->nonce));
 	ctx->encr_pos = AES_BLOCK_SIZE;
-	EVP_CIPHER_CTX_init(&ctx->ctx);
+#if OPENSSL_VERSION_NUMBER  >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+	if (!EVP_CIPHER_CTX_reset(ctx->ctx)) {
+		EVP_CIPHER_CTX_free(ctx->ctx);
+		ctx->ctx = NULL;
+	}
+#else
+	EVP_CIPHER_CTX_init(ctx->ctx);
+#endif
 	return 0;
 }
 
@@ -311,10 +395,10 @@ aes_ctr_encrypt_counter(archive_crypto_ctx *ctx)
 	int outl = 0;
 	int r;
 
-	r = EVP_EncryptInit_ex(&ctx->ctx, ctx->type, NULL, ctx->key, NULL);
+	r = EVP_EncryptInit_ex(ctx->ctx, ctx->type, NULL, ctx->key, NULL);
 	if (r == 0)
 		return -1;
-	r = EVP_EncryptUpdate(&ctx->ctx, ctx->encr_buf, &outl, ctx->nonce,
+	r = EVP_EncryptUpdate(ctx->ctx, ctx->encr_buf, &outl, ctx->nonce,
 	    AES_BLOCK_SIZE);
 	if (r == 0 || outl != AES_BLOCK_SIZE)
 		return -1;
@@ -324,7 +408,7 @@ aes_ctr_encrypt_counter(archive_crypto_ctx *ctx)
 static int
 aes_ctr_release(archive_crypto_ctx *ctx)
 {
-	EVP_CIPHER_CTX_cleanup(&ctx->ctx);
+	EVP_CIPHER_CTX_free(ctx->ctx);
 	memset(ctx->key, 0, ctx->key_len);
 	memset(ctx->nonce, 0, sizeof(ctx->nonce));
 	return 0;

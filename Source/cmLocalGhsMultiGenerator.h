@@ -1,20 +1,18 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2015 Geoffrey Viola <geoffrey.viola@asirobots.com>
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmLocalGhsMultiGenerator_h
 #define cmLocalGhsMultiGenerator_h
 
+#include <map>
+#include <string>
+#include <vector>
+
 #include "cmLocalGenerator.h"
 
-class cmGeneratedFileStream;
+class cmGeneratorTarget;
+class cmGlobalGenerator;
+class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalGhsMultiGenerator
  * \brief Write Green Hills MULTI project files.
@@ -27,12 +25,23 @@ class cmLocalGhsMultiGenerator : public cmLocalGenerator
 public:
   cmLocalGhsMultiGenerator(cmGlobalGenerator* gg, cmMakefile* mf);
 
-  virtual ~cmLocalGhsMultiGenerator();
+  ~cmLocalGhsMultiGenerator() override;
 
   /**
    * Generate the makefile for this directory.
    */
-  virtual void Generate();
+  void Generate() override;
+
+  std::string GetTargetDirectory(
+    cmGeneratorTarget const* target) const override;
+
+  void ComputeObjectFilenames(
+    std::map<cmSourceFile const*, std::string>& mapping,
+    cmGeneratorTarget const* gt = nullptr) override;
+
+private:
+  void GenerateTargetsDepthFirst(cmGeneratorTarget* target,
+                                 std::vector<cmGeneratorTarget*>& remaining);
 };
 
 #endif

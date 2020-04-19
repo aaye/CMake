@@ -1,40 +1,44 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2012 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExportSet.h"
-#include "cmTargetExport.h"
-#include "cmAlgorithms.h"
-#include "cmLocalGenerator.h"
 
-cmExportSet::~cmExportSet()
+#include <tuple>
+#include <utility>
+
+#include "cmLocalGenerator.h"
+#include "cmTargetExport.h"
+
+cmExportSet::cmExportSet(std::string name)
+  : Name(std::move(name))
 {
-  cmDeleteAll(this->TargetExports);
 }
+
+cmExportSet::~cmExportSet() = default;
 
 void cmExportSet::Compute(cmLocalGenerator* lg)
 {
-  for (std::vector<cmTargetExport*>::iterator it = this->TargetExports.begin();
-       it != this->TargetExports.end(); ++it)
-    {
-    (*it)->Target = lg->FindGeneratorTargetToUse((*it)->TargetName);
-    }
+  for (std::unique_ptr<cmTargetExport>& tgtExport : this->TargetExports) {
+    tgtExport->Target = lg->FindGeneratorTargetToUse(tgtExport->TargetName);
+  }
 }
 
-void cmExportSet::AddTargetExport(cmTargetExport* te)
+void cmExportSet::AddTargetExport(std::unique_ptr<cmTargetExport> te)
 {
-  this->TargetExports.push_back(te);
+  this->TargetExports.emplace_back(std::move(te));
 }
 
 void cmExportSet::AddInstallation(cmInstallExportGenerator const* installation)
 {
   this->Installations.push_back(installation);
+}
+
+cmExportSet& cmExportSetMap::operator[](const std::string& name)
+{
+  auto it = this->find(name);
+  if (it == this->end()) // Export set not found
+  {
+    auto tup_name = std::make_tuple(name);
+    it = this->emplace(std::piecewise_construct, tup_name, tup_name).first;
+  }
+  return it->second;
 }

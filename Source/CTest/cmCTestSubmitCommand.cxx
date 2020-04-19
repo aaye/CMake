@@ -1,112 +1,83 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestSubmitCommand.h"
 
+#include <set>
+#include <sstream>
+#include <utility>
+
+#include <cm/memory>
+#include <cm/vector>
+#include <cmext/algorithm>
+
+#include "cm_static_string_view.hxx"
+
 #include "cmCTest.h"
-#include "cmCTestGenericHandler.h"
 #include "cmCTestSubmitHandler.h"
+#include "cmCommand.h"
+#include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmRange.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+
+/**
+ * This is a virtual constructor for the command.
+ */
+std::unique_ptr<cmCommand> cmCTestSubmitCommand::Clone()
+{
+  auto ni = cm::make_unique<cmCTestSubmitCommand>();
+  ni->CTest = this->CTest;
+  ni->CTestScriptHandler = this->CTestScriptHandler;
+  return std::unique_ptr<cmCommand>(std::move(ni));
+}
 
 cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
 {
-  const char* ctestDropMethod
-    = this->Makefile->GetDefinition("CTEST_DROP_METHOD");
-  const char* ctestDropSite
-    = this->Makefile->GetDefinition("CTEST_DROP_SITE");
-  const char* ctestDropLocation
-    = this->Makefile->GetDefinition("CTEST_DROP_LOCATION");
-  const char* ctestTriggerSite
-    = this->Makefile->GetDefinition("CTEST_TRIGGER_SITE");
-  bool ctestDropSiteCDash
-    = this->Makefile->IsOn("CTEST_DROP_SITE_CDASH");
-  const char* ctestProjectName
-    = this->Makefile->GetDefinition("CTEST_PROJECT_NAME");
-  if ( !ctestDropMethod )
-    {
-    ctestDropMethod = "http";
-    }
+  const char* submitURL = !this->SubmitURL.empty()
+    ? this->SubmitURL.c_str()
+    : this->Makefile->GetDefinition("CTEST_SUBMIT_URL");
 
-  if ( !ctestDropSite )
-    {
-    // error: CDash requires CTEST_DROP_SITE definition
-    // in CTestConfig.cmake
-    }
-  if ( !ctestDropLocation )
-    {
-    // error: CDash requires CTEST_DROP_LOCATION definition
-    // in CTestConfig.cmake
-    }
-  this->CTest->SetCTestConfiguration("ProjectName", ctestProjectName,
-    this->Quiet);
-  this->CTest->SetCTestConfiguration("DropMethod", ctestDropMethod,
-    this->Quiet);
-  this->CTest->SetCTestConfiguration("DropSite", ctestDropSite, this->Quiet);
-  this->CTest->SetCTestConfiguration("DropLocation", ctestDropLocation,
-    this->Quiet);
-
-  this->CTest->SetCTestConfiguration("IsCDash",
-    ctestDropSiteCDash ? "TRUE" : "FALSE", this->Quiet);
-
-  // Only propagate TriggerSite for non-CDash projects:
-  //
-  if ( !ctestDropSiteCDash )
-    {
-    this->CTest->SetCTestConfiguration("TriggerSite",  ctestTriggerSite,
+  if (submitURL) {
+    this->CTest->SetCTestConfiguration("SubmitURL", submitURL, this->Quiet);
+  } else {
+    this->CTest->SetCTestConfigurationFromCMakeVariable(
+      this->Makefile, "DropMethod", "CTEST_DROP_METHOD", this->Quiet);
+    this->CTest->SetCTestConfigurationFromCMakeVariable(
+      this->Makefile, "DropSiteUser", "CTEST_DROP_SITE_USER", this->Quiet);
+    this->CTest->SetCTestConfigurationFromCMakeVariable(
+      this->Makefile, "DropSitePassword", "CTEST_DROP_SITE_PASSWORD",
       this->Quiet);
-    }
+    this->CTest->SetCTestConfigurationFromCMakeVariable(
+      this->Makefile, "DropSite", "CTEST_DROP_SITE", this->Quiet);
+    this->CTest->SetCTestConfigurationFromCMakeVariable(
+      this->Makefile, "DropLocation", "CTEST_DROP_LOCATION", this->Quiet);
+  }
 
-  this->CTest->SetCTestConfigurationFromCMakeVariable(this->Makefile,
-    "CurlOptions", "CTEST_CURL_OPTIONS", this->Quiet);
-  this->CTest->SetCTestConfigurationFromCMakeVariable(this->Makefile,
-    "DropSiteUser", "CTEST_DROP_SITE_USER", this->Quiet);
-  this->CTest->SetCTestConfigurationFromCMakeVariable(this->Makefile,
-    "DropSitePassword", "CTEST_DROP_SITE_PASSWORD", this->Quiet);
-  this->CTest->SetCTestConfigurationFromCMakeVariable(this->Makefile,
-    "ScpCommand", "CTEST_SCP_COMMAND", this->Quiet);
+  this->CTest->SetCTestConfigurationFromCMakeVariable(
+    this->Makefile, "CurlOptions", "CTEST_CURL_OPTIONS", this->Quiet);
 
-  const char* notesFilesVariable
-    = this->Makefile->GetDefinition("CTEST_NOTES_FILES");
-  if (notesFilesVariable)
-    {
-    std::vector<std::string> notesFiles;
-    cmCTest::VectorOfStrings newNotesFiles;
-    cmSystemTools::ExpandListArgument(notesFilesVariable,notesFiles);
-    newNotesFiles.insert(newNotesFiles.end(),
-                         notesFiles.begin(), notesFiles.end());
-    this->CTest->GenerateNotesFile(newNotesFiles);
-    }
+  const char* notesFilesVariable =
+    this->Makefile->GetDefinition("CTEST_NOTES_FILES");
+  if (notesFilesVariable) {
+    std::vector<std::string> notesFiles = cmExpandedList(notesFilesVariable);
+    this->CTest->GenerateNotesFile(notesFiles);
+  }
 
-  const char* extraFilesVariable
-    = this->Makefile->GetDefinition("CTEST_EXTRA_SUBMIT_FILES");
-  if (extraFilesVariable)
-    {
-    std::vector<std::string> extraFiles;
-    cmCTest::VectorOfStrings newExtraFiles;
-    cmSystemTools::ExpandListArgument(extraFilesVariable,extraFiles);
-    newExtraFiles.insert(newExtraFiles.end(),
-                         extraFiles.begin(), extraFiles.end());
-    if ( !this->CTest->SubmitExtraFiles(newExtraFiles))
-      {
+  const char* extraFilesVariable =
+    this->Makefile->GetDefinition("CTEST_EXTRA_SUBMIT_FILES");
+  if (extraFilesVariable) {
+    std::vector<std::string> extraFiles = cmExpandedList(extraFilesVariable);
+    if (!this->CTest->SubmitExtraFiles(extraFiles)) {
       this->SetError("problem submitting extra files.");
-      return 0;
-      }
+      return nullptr;
     }
+  }
 
-  cmCTestGenericHandler* handler
-    = this->CTest->GetInitializedHandler("submit");
-  if ( !handler )
-    {
-    this->SetError("internal CTest error. Cannot instantiate submit handler");
-    return 0;
-    }
+  cmCTestSubmitHandler* handler = this->CTest->GetSubmitHandler();
+  handler->Initialize();
 
   // If no FILES or PARTS given, *all* PARTS are submitted by default.
   //
@@ -122,176 +93,109 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
 
   // If given explicit FILES to submit, pass them to the handler.
   //
-  if(this->FilesMentioned)
-    {
+  if (this->FilesMentioned) {
     // Intentionally select *no* PARTS. (Pass an empty set.) If PARTS
     // were also explicitly mentioned, they will be selected below...
     // But FILES with no PARTS mentioned should just submit the FILES
     // without any of the default parts.
     //
-    std::set<cmCTest::Part> noParts;
-    static_cast<cmCTestSubmitHandler*>(handler)->SelectParts(noParts);
-
-    static_cast<cmCTestSubmitHandler*>(handler)->SelectFiles(this->Files);
-    }
+    handler->SelectParts(std::set<cmCTest::Part>());
+    handler->SelectFiles(
+      std::set<std::string>(this->Files.begin(), this->Files.end()));
+  }
 
   // If a PARTS option was given, select only the named parts for submission.
   //
-  if(this->PartsMentioned)
-    {
-    static_cast<cmCTestSubmitHandler*>(handler)->SelectParts(this->Parts);
-    }
+  if (this->PartsMentioned) {
+    auto parts =
+      cmMakeRange(this->Parts).transform([this](std::string const& arg) {
+        return this->CTest->GetPartFromName(arg.c_str());
+      });
+    handler->SelectParts(std::set<cmCTest::Part>(parts.begin(), parts.end()));
+  }
 
-  static_cast<cmCTestSubmitHandler*>(handler)->SetOption("RetryDelay",
-    this->RetryDelay.c_str());
-  static_cast<cmCTestSubmitHandler*>(handler)->SetOption("RetryCount",
-    this->RetryCount.c_str());
-  static_cast<cmCTestSubmitHandler*>(handler)->SetOption("InternalTest",
-    this->InternalTest ? "ON" : "OFF");
+  // Pass along any HTTPHEADER to the handler if this option was given.
+  if (!this->HttpHeaders.empty()) {
+    handler->SetHttpHeaders(this->HttpHeaders);
+  }
+
+  handler->SetOption("RetryDelay", this->RetryDelay.c_str());
+  handler->SetOption("RetryCount", this->RetryCount.c_str());
+  handler->SetOption("InternalTest", this->InternalTest ? "ON" : "OFF");
 
   handler->SetQuiet(this->Quiet);
 
-  if (this->CDashUpload)
-    {
-    static_cast<cmCTestSubmitHandler*>(handler)->
-      SetOption("CDashUploadFile", this->CDashUploadFile.c_str());
-    static_cast<cmCTestSubmitHandler*>(handler)->
-      SetOption("CDashUploadType", this->CDashUploadType.c_str());
-    }
+  if (this->CDashUpload) {
+    handler->SetOption("CDashUploadFile", this->CDashUploadFile.c_str());
+    handler->SetOption("CDashUploadType", this->CDashUploadType.c_str());
+  }
   return handler;
 }
 
-//----------------------------------------------------------------------------
 bool cmCTestSubmitCommand::InitialPass(std::vector<std::string> const& args,
                                        cmExecutionStatus& status)
 {
   this->CDashUpload = !args.empty() && args[0] == "CDASH_UPLOAD";
-  return this->cmCTestHandlerCommand::InitialPass(args, status);
+
+  bool ret = this->cmCTestHandlerCommand::InitialPass(args, status);
+
+  if (!this->BuildID.empty()) {
+    this->Makefile->AddDefinition(this->BuildID, this->CTest->GetBuildID());
+  }
+
+  return ret;
 }
 
-//----------------------------------------------------------------------------
-bool cmCTestSubmitCommand::CheckArgumentKeyword(std::string const& arg)
+void cmCTestSubmitCommand::BindArguments()
 {
-  if (this->CDashUpload)
-    {
-    if(arg == "CDASH_UPLOAD")
-      {
-      this->ArgumentDoing = ArgumentDoingCDashUpload;
-      return true;
-      }
-
-    if(arg == "CDASH_UPLOAD_TYPE")
-      {
-      this->ArgumentDoing = ArgumentDoingCDashUploadType;
-      return true;
-      }
-    }
-  else
-    {
-    // Look for arguments specific to this command.
-    if(arg == "PARTS")
-      {
-      this->ArgumentDoing = ArgumentDoingParts;
-      this->PartsMentioned = true;
-      return true;
-      }
-
-    if(arg == "FILES")
-      {
-      this->ArgumentDoing = ArgumentDoingFiles;
-      this->FilesMentioned = true;
-      return true;
-      }
-
-    if(arg == "RETRY_COUNT")
-      {
-      this->ArgumentDoing = ArgumentDoingRetryCount;
-      return true;
-      }
-
-    if(arg == "RETRY_DELAY")
-      {
-      this->ArgumentDoing = ArgumentDoingRetryDelay;
-      return true;
-      }
-
-    if(arg == "INTERNAL_TEST_CHECKSUM")
-      {
-      this->InternalTest = true;
-      return true;
-      }
-    }
+  if (this->CDashUpload) {
+    // Arguments specific to the CDASH_UPLOAD signature.
+    this->Bind("CDASH_UPLOAD", this->CDashUploadFile);
+    this->Bind("CDASH_UPLOAD_TYPE", this->CDashUploadType);
+  } else {
+    // Arguments that cannot be used with CDASH_UPLOAD.
+    this->Bind("PARTS"_s, this->Parts);
+    this->Bind("FILES"_s, this->Files);
+  }
+  // Arguments used by both modes.
+  this->Bind("BUILD_ID"_s, this->BuildID);
+  this->Bind("HTTPHEADER"_s, this->HttpHeaders);
+  this->Bind("RETRY_COUNT"_s, this->RetryCount);
+  this->Bind("RETRY_DELAY"_s, this->RetryDelay);
+  this->Bind("SUBMIT_URL"_s, this->SubmitURL);
+  this->Bind("INTERNAL_TEST_CHECKSUM", this->InternalTest);
 
   // Look for other arguments.
-  return this->Superclass::CheckArgumentKeyword(arg);
+  this->cmCTestHandlerCommand::BindArguments();
 }
 
-
-//----------------------------------------------------------------------------
-bool cmCTestSubmitCommand::CheckArgumentValue(std::string const& arg)
+void cmCTestSubmitCommand::CheckArguments(
+  std::vector<std::string> const& keywords)
 {
-  // Handle states specific to this command.
-  if(this->ArgumentDoing == ArgumentDoingParts)
-    {
+  this->PartsMentioned =
+    !this->Parts.empty() || cm::contains(keywords, "PARTS");
+  this->FilesMentioned =
+    !this->Files.empty() || cm::contains(keywords, "FILES");
+
+  cm::erase_if(this->Parts, [this](std::string const& arg) -> bool {
     cmCTest::Part p = this->CTest->GetPartFromName(arg.c_str());
-    if(p != cmCTest::PartCount)
-      {
-      this->Parts.insert(p);
-      }
-    else
-      {
+    if (p == cmCTest::PartCount) {
       std::ostringstream e;
       e << "Part name \"" << arg << "\" is invalid.";
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      this->ArgumentDoing = ArgumentDoingError;
-      }
-    return true;
+      this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
+      return true;
     }
+    return false;
+  });
 
-  if(this->ArgumentDoing == ArgumentDoingFiles)
-    {
-    std::string filename(arg);
-    if(cmSystemTools::FileExists(filename.c_str()))
-      {
-      this->Files.insert(filename);
-      }
-    else
-      {
+  cm::erase_if(this->Files, [this](std::string const& arg) -> bool {
+    if (!cmSystemTools::FileExists(arg)) {
       std::ostringstream e;
-      e << "File \"" << filename << "\" does not exist. Cannot submit "
-          << "a non-existent file.";
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      this->ArgumentDoing = ArgumentDoingError;
-      }
-    return true;
+      e << "File \"" << arg << "\" does not exist. Cannot submit "
+        << "a non-existent file.";
+      this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
+      return true;
     }
-
-  if(this->ArgumentDoing == ArgumentDoingRetryCount)
-    {
-    this->RetryCount = arg;
-    return true;
-    }
-
-  if(this->ArgumentDoing == ArgumentDoingRetryDelay)
-    {
-    this->RetryDelay = arg;
-    return true;
-    }
-
-  if(this->ArgumentDoing == ArgumentDoingCDashUpload)
-    {
-    this->ArgumentDoing = ArgumentDoingNone;
-    this->CDashUploadFile = arg;
-    return true;
-    }
-
-  if(this->ArgumentDoing == ArgumentDoingCDashUploadType)
-    {
-    this->ArgumentDoing = ArgumentDoingNone;
-    this->CDashUploadType = arg;
-    return true;
-    }
-
-  // Look for other arguments.
-  return this->Superclass::CheckArgumentValue(arg);
+    return false;
+  });
 }

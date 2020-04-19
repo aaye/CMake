@@ -1,52 +1,53 @@
-#.rst:
-# CheckLibraryExists
-# ------------------
-#
-# Check if the function exists.
-#
-# CHECK_LIBRARY_EXISTS (LIBRARY FUNCTION LOCATION VARIABLE)
-#
-# ::
-#
-#   LIBRARY  - the name of the library you are looking for
-#   FUNCTION - the name of the function
-#   LOCATION - location where the library should be found
-#   VARIABLE - variable to store the result
-#              Will be created as an internal cache variable.
-#
-#
-#
-# The following variables may be set before calling this macro to modify
-# the way the check is run:
-#
-# ::
-#
-#   CMAKE_REQUIRED_FLAGS = string of compile command line flags
-#   CMAKE_REQUIRED_DEFINITIONS = list of macros to define (-DFOO=bar)
-#   CMAKE_REQUIRED_LIBRARIES = list of libraries to link
-#   CMAKE_REQUIRED_QUIET = execute quietly without messages
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2002-2009 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+CheckLibraryExists
+------------------
+
+Check if the function exists.
+
+.. command:: CHECK_LIBRARY_EXISTS
+
+  .. code-block:: cmake
+
+    CHECK_LIBRARY_EXISTS(LIBRARY FUNCTION LOCATION VARIABLE)
+
+  ::
+
+    LIBRARY  - the name of the library you are looking for
+    FUNCTION - the name of the function
+    LOCATION - location where the library should be found
+    VARIABLE - variable to store the result
+               Will be created as an internal cache variable.
 
 
+
+The following variables may be set before calling this macro to modify
+the way the check is run:
+
+::
+
+  CMAKE_REQUIRED_FLAGS = string of compile command line flags
+  CMAKE_REQUIRED_DEFINITIONS = list of macros to define (-DFOO=bar)
+  CMAKE_REQUIRED_LINK_OPTIONS = list of options to pass to link command
+  CMAKE_REQUIRED_LIBRARIES = list of libraries to link
+  CMAKE_REQUIRED_QUIET = execute quietly without messages
+#]=======================================================================]
+
+include_guard(GLOBAL)
 
 macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
   if(NOT DEFINED "${VARIABLE}")
     set(MACRO_CHECK_LIBRARY_EXISTS_DEFINITION
       "-DCHECK_FUNCTION_EXISTS=${FUNCTION} ${CMAKE_REQUIRED_FLAGS}")
     if(NOT CMAKE_REQUIRED_QUIET)
-      message(STATUS "Looking for ${FUNCTION} in ${LIBRARY}")
+      message(CHECK_START "Looking for ${FUNCTION} in ${LIBRARY}")
+    endif()
+    set(CHECK_LIBRARY_EXISTS_LINK_OPTIONS)
+    if(CMAKE_REQUIRED_LINK_OPTIONS)
+      set(CHECK_LIBRARY_EXISTS_LINK_OPTIONS
+        LINK_OPTIONS ${CMAKE_REQUIRED_LINK_OPTIONS})
     endif()
     set(CHECK_LIBRARY_EXISTS_LIBRARIES ${LIBRARY})
     if(CMAKE_REQUIRED_LIBRARIES)
@@ -67,6 +68,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
       ${CMAKE_BINARY_DIR}
       ${_cle_source}
       COMPILE_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS}
+      ${CHECK_LIBRARY_EXISTS_LINK_OPTIONS}
       LINK_LIBRARIES ${CHECK_LIBRARY_EXISTS_LIBRARIES}
       CMAKE_FLAGS
       -DCOMPILE_DEFINITIONS:STRING=${MACRO_CHECK_LIBRARY_EXISTS_DEFINITION}
@@ -76,7 +78,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
 
     if(${VARIABLE})
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} in ${LIBRARY} - found")
+        message(CHECK_PASS "found")
       endif()
       set(${VARIABLE} 1 CACHE INTERNAL "Have library ${LIBRARY}")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
@@ -85,7 +87,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
         "${OUTPUT}\n\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} in ${LIBRARY} - not found")
+        message(CHECK_FAIL "not found")
       endif()
       set(${VARIABLE} "" CACHE INTERNAL "Have library ${LIBRARY}")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log

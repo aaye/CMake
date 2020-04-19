@@ -1,40 +1,31 @@
-#.rst:
-# FindLibXslt
-# -----------
-#
-# Try to find the LibXslt library
-#
-# Once done this will define
-#
-# ::
-#
-#   LIBXSLT_FOUND - system has LibXslt
-#   LIBXSLT_INCLUDE_DIR - the LibXslt include directory
-#   LIBXSLT_LIBRARIES - Link these to LibXslt
-#   LIBXSLT_DEFINITIONS - Compiler switches required for using LibXslt
-#   LIBXSLT_VERSION_STRING - version of LibXslt found (since CMake 2.8.8)
-#
-# Additionally, the following two variables are set (but not required
-# for using xslt):
-#
-# ``LIBXSLT_EXSLT_LIBRARIES``
-#   Link to these if you need to link against the exslt library.
-# ``LIBXSLT_XSLTPROC_EXECUTABLE``
-#   Contains the full path to the xsltproc executable if found.
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2006-2009 Kitware, Inc.
-# Copyright 2006 Alexander Neundorf <neundorf@kde.org>
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindLibXslt
+-----------
+
+Find the XSL Transformations, Extensible Stylesheet Language
+Transformations (XSLT) library (LibXslt)
+
+Once done this will define
+
+::
+
+  LIBXSLT_FOUND - system has LibXslt
+  LIBXSLT_INCLUDE_DIR - the LibXslt include directory
+  LIBXSLT_LIBRARIES - Link these to LibXslt
+  LIBXSLT_DEFINITIONS - Compiler switches required for using LibXslt
+  LIBXSLT_VERSION_STRING - version of LibXslt found (since CMake 2.8.8)
+
+Additionally, the following two variables are set (but not required
+for using xslt):
+
+``LIBXSLT_EXSLT_LIBRARIES``
+  Link to these if you need to link against the exslt library.
+``LIBXSLT_XSLTPROC_EXECUTABLE``
+  Contains the full path to the xsltproc executable if found.
+#]=======================================================================]
 
 # use pkg-config to get the directories and then use these values
 # in the find_path() and find_library() calls

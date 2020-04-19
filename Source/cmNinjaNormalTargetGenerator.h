@@ -1,53 +1,50 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2011 Peter Collingbourne <peter@pcc.me.uk>
-  Copyright 2011 Nicolas Despres <nicolas.despres@gmail.com>
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmNinjaNormalTargetGenerator_h
-#  define cmNinjaNormalTargetGenerator_h
+#define cmNinjaNormalTargetGenerator_h
 
-#  include "cmNinjaTargetGenerator.h"
-#  include "cmNinjaTypes.h"
-#  include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#  include <set>
+#include <string>
+#include <vector>
 
-class cmSourceFile;
-class cmOSXBundleGenerator;
-class cmGeneratorTarget;
+#include "cmGeneratorTarget.h"
+#include "cmNinjaTargetGenerator.h"
 
 class cmNinjaNormalTargetGenerator : public cmNinjaTargetGenerator
 {
 public:
   cmNinjaNormalTargetGenerator(cmGeneratorTarget* target);
-  ~cmNinjaNormalTargetGenerator();
+  ~cmNinjaNormalTargetGenerator() override;
 
-  void Generate();
+  void Generate(const std::string& config) override;
 
 private:
-  std::string LanguageLinkerRule() const;
+  std::string LanguageLinkerRule(const std::string& config) const;
+  std::string LanguageLinkerDeviceRule(const std::string& config) const;
+
   const char* GetVisibleTypeName() const;
-  void WriteLanguagesRules();
-  void WriteLinkRule(bool useResponseFile);
-  void WriteLinkStatement();
-  void WriteObjectLibStatement();
-  std::vector<std::string> ComputeLinkCmd();
+  void WriteLanguagesRules(const std::string& config);
+
+  void WriteLinkRule(bool useResponseFile, const std::string& config);
+  void WriteDeviceLinkRule(bool useResponseFile, const std::string& config);
+
+  void WriteLinkStatement(const std::string& config,
+                          const std::string& fileConfig, bool firstForConfig);
+  void WriteDeviceLinkStatement(const std::string& config,
+                                const std::string& fileConfig,
+                                bool firstForConfig);
+
+  void WriteObjectLibStatement(const std::string& config);
+
+  std::vector<std::string> ComputeLinkCmd(const std::string& config);
+  std::vector<std::string> ComputeDeviceLinkCmd();
 
 private:
   // Target name info.
-  std::string TargetNameOut;
-  std::string TargetNameSO;
-  std::string TargetNameReal;
-  std::string TargetNameImport;
-  std::string TargetNamePDB;
-  std::string TargetLinkLanguage;
+  cmGeneratorTarget::Names TargetNames(const std::string& config) const;
+  std::string TargetLinkLanguage(const std::string& config) const;
+  std::string DeviceLinkObject;
 };
 
 #endif // ! cmNinjaNormalTargetGenerator_h

@@ -1,21 +1,23 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmCTestBuildCommand_h
 #define cmCTestBuildCommand_h
 
-#include "cmCTestHandlerCommand.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmGlobalGenerator;
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <cm/memory>
+
+#include "cmCTestHandlerCommand.h"
+#include "cmCommand.h"
+
 class cmCTestBuildHandler;
+class cmCTestGenericHandler;
+class cmExecutionStatus;
+class cmGlobalGenerator;
 
 /** \class cmCTestBuild
  * \brief Run a ctest script
@@ -25,48 +27,40 @@ class cmCTestBuildHandler;
 class cmCTestBuildCommand : public cmCTestHandlerCommand
 {
 public:
-
-  cmCTestBuildCommand();
-  ~cmCTestBuildCommand();
+  ~cmCTestBuildCommand() override;
 
   /**
    * This is a virtual constructor for the command.
    */
-  virtual cmCommand* Clone()
-    {
-    cmCTestBuildCommand* ni = new cmCTestBuildCommand;
+  std::unique_ptr<cmCommand> Clone() override
+  {
+    auto ni = cm::make_unique<cmCTestBuildCommand>();
     ni->CTest = this->CTest;
     ni->CTestScriptHandler = this->CTestScriptHandler;
-    return ni;
-    }
+    return std::unique_ptr<cmCommand>(std::move(ni));
+  }
 
   /**
    * The name of the command as specified in CMakeList.txt.
    */
-  virtual std::string GetName() const { return "ctest_build";}
+  std::string GetName() const override { return "ctest_build"; }
 
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &status);
+  bool InitialPass(std::vector<std::string> const& args,
+                   cmExecutionStatus& status) override;
 
-  cmTypeMacro(cmCTestBuildCommand, cmCTestHandlerCommand);
-
-  cmGlobalGenerator* GlobalGenerator;
+  std::unique_ptr<cmGlobalGenerator> GlobalGenerator;
 
 protected:
   cmCTestBuildHandler* Handler;
-  enum {
-    ctb_BUILD = ct_LAST,
-    ctb_NUMBER_ERRORS,
-    ctb_NUMBER_WARNINGS,
-    ctb_TARGET,
-    ctb_CONFIGURATION,
-    ctb_FLAGS,
-    ctb_PROJECT_NAME,
-    ctb_LAST
-  };
+  void BindArguments() override;
+  cmCTestGenericHandler* InitializeHandler() override;
 
-  cmCTestGenericHandler* InitializeHandler();
+  std::string NumberErrors;
+  std::string NumberWarnings;
+  std::string Target;
+  std::string Configuration;
+  std::string Flags;
+  std::string ProjectName;
 };
-
 
 #endif

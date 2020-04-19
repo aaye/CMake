@@ -1,5 +1,7 @@
 include(RunCMake)
 
+run_cmake(PkgConfigDoesNotExist)
+
 run_cmake(FindPkgConfig_NO_PKGCONFIG_PATH)
 run_cmake(FindPkgConfig_PKGCONFIG_PATH)
 run_cmake(FindPkgConfig_PKGCONFIG_PATH_NO_CMAKE_PATH)
@@ -14,5 +16,10 @@ endif()
 find_package(PkgConfig)
 if (PKG_CONFIG_FOUND)
   run_cmake(FindPkgConfig_GET_VARIABLE)
+  run_cmake(FindPkgConfig_GET_VARIABLE_PREFIX_PATH)
+  run_cmake(FindPkgConfig_GET_VARIABLE_PKGCONFIG_PATH)
   run_cmake(FindPkgConfig_cache_variables)
+  run_cmake(FindPkgConfig_IMPORTED_TARGET)
+  run_cmake(FindPkgConfig_VERSION_OPERATORS)
+  run_cmake(FindPkgConfig_GET_MATCHING_MODULE_NAME)
 endif ()

@@ -1,116 +1,114 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2012 Kitware, Inc., Insight Software Consortium
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#if !defined(_WIN32) && !defined(__sun)
+// POSIX APIs are needed
+#  define _POSIX_C_SOURCE 200809L
+#endif
+#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__)
+// For isascii
+#  define _XOPEN_SOURCE 700
+#endif
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
 #include "cmTimestamp.h"
 
-#include <cstring>
 #include <cstdlib>
-
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <cstring>
 #include <sstream>
 
-//----------------------------------------------------------------------------
-std::string cmTimestamp::CurrentTime(
-  const std::string& formatString, bool utcFlag)
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+
+std::string cmTimestamp::CurrentTime(const std::string& formatString,
+                                     bool utcFlag)
 {
-  time_t currentTimeT = time(0);
-  if(currentTimeT == time_t(-1))
-    {
-    return std::string();
+  time_t currentTimeT = time(nullptr);
+  std::string source_date_epoch;
+  cmSystemTools::GetEnv("SOURCE_DATE_EPOCH", source_date_epoch);
+  if (!source_date_epoch.empty()) {
+    std::istringstream iss(source_date_epoch);
+    iss >> currentTimeT;
+    if (iss.fail() || !iss.eof()) {
+      cmSystemTools::Error("Cannot parse SOURCE_DATE_EPOCH as integer");
+      exit(27);
     }
+  }
+  if (currentTimeT == time_t(-1)) {
+    return std::string();
+  }
 
   return CreateTimestampFromTimeT(currentTimeT, formatString, utcFlag);
 }
 
-//----------------------------------------------------------------------------
 std::string cmTimestamp::FileModificationTime(const char* path,
-  const std::string& formatString, bool utcFlag)
+                                              const std::string& formatString,
+                                              bool utcFlag)
 {
-  if(!cmsys::SystemTools::FileExists(path))
-    {
-    return std::string();
-    }
+  std::string real_path =
+    cmSystemTools::GetRealPathResolvingWindowsSubst(path);
 
-  time_t mtime = cmsys::SystemTools::ModifiedTime(path);
+  if (!cmsys::SystemTools::FileExists(real_path)) {
+    return std::string();
+  }
+
+  time_t mtime = cmsys::SystemTools::ModifiedTime(real_path);
   return CreateTimestampFromTimeT(mtime, formatString, utcFlag);
 }
 
-//----------------------------------------------------------------------------
 std::string cmTimestamp::CreateTimestampFromTimeT(time_t timeT,
-  std::string formatString, bool utcFlag) const
+                                                  std::string formatString,
+                                                  bool utcFlag) const
 {
-  if(formatString.empty())
-    {
+  if (formatString.empty()) {
     formatString = "%Y-%m-%dT%H:%M:%S";
-    if(utcFlag)
-      {
+    if (utcFlag) {
       formatString += "Z";
-      }
     }
+  }
 
   struct tm timeStruct;
   memset(&timeStruct, 0, sizeof(timeStruct));
 
-  struct tm* ptr = (struct tm*) 0;
-  if(utcFlag)
-    {
+  struct tm* ptr = nullptr;
+  if (utcFlag) {
     ptr = gmtime(&timeT);
-    }
-  else
-    {
+  } else {
     ptr = localtime(&timeT);
-    }
+  }
 
-  if(ptr == 0)
-    {
+  if (ptr == nullptr) {
     return std::string();
-    }
+  }
 
   timeStruct = *ptr;
 
   std::string result;
-  for(std::string::size_type i = 0; i < formatString.size(); ++i)
-    {
+  for (std::string::size_type i = 0; i < formatString.size(); ++i) {
     char c1 = formatString[i];
-    char c2 = (i + 1 < formatString.size()) ?
-      formatString[i + 1] : static_cast<char>(0);
+    char c2 = (i + 1 < formatString.size()) ? formatString[i + 1]
+                                            : static_cast<char>(0);
 
-    if(c1 == '%' && c2 != 0)
-      {
+    if (c1 == '%' && c2 != 0) {
       result += AddTimestampComponent(c2, timeStruct, timeT);
       ++i;
-      }
-    else
-      {
+    } else {
       result += c1;
-      }
     }
+  }
 
   return result;
 }
 
-//----------------------------------------------------------------------------
-time_t cmTimestamp::CreateUtcTimeTFromTm(struct tm &tm) const
+time_t cmTimestamp::CreateUtcTimeTFromTm(struct tm& tm) const
 {
 #if defined(_MSC_VER) && _MSC_VER >= 1400
   return _mkgmtime(&tm);
 #else
   // From Linux timegm() manpage.
 
-  std::string tz_old = "TZ=";
-  if (const char* tz = cmSystemTools::GetEnv("TZ"))
-    {
-    tz_old += tz;
-    }
+  std::string tz_old;
+  bool const tz_was_set = cmSystemTools::GetEnv("TZ", tz_old);
+  tz_old = "TZ=" + tz_old;
 
   // The standard says that "TZ=" or "TZ=[UNRECOGNIZED_TZ]" means UTC.
   // It seems that "TZ=" does NOT work, at least under Windows
@@ -122,7 +120,17 @@ time_t cmTimestamp::CreateUtcTimeTFromTm(struct tm &tm) const
 
   time_t result = mktime(&tm);
 
+#  ifndef CMAKE_BOOTSTRAP
+  if (tz_was_set) {
+    cmSystemTools::PutEnv(tz_old);
+  } else {
+    cmSystemTools::UnsetEnv("TZ");
+  }
+#  else
+  // No UnsetEnv during bootstrap.  This is good enough for CMake itself.
   cmSystemTools::PutEnv(tz_old);
+  static_cast<void>(tz_was_set);
+#  endif
 
   tzset();
 
@@ -130,15 +138,17 @@ time_t cmTimestamp::CreateUtcTimeTFromTm(struct tm &tm) const
 #endif
 }
 
-//----------------------------------------------------------------------------
-std::string cmTimestamp::AddTimestampComponent(
-  char flag, struct tm& timeStruct, const time_t timeT) const
+std::string cmTimestamp::AddTimestampComponent(char flag,
+                                               struct tm& timeStruct,
+                                               const time_t timeT) const
 {
-  std::string formatString = "%";
-  formatString += flag;
+  std::string formatString = cmStrCat('%', flag);
 
-  switch(flag)
-    {
+  switch (flag) {
+    case 'a':
+    case 'A':
+    case 'b':
+    case 'B':
     case 'd':
     case 'H':
     case 'I':
@@ -150,37 +160,35 @@ std::string cmTimestamp::AddTimestampComponent(
     case 'w':
     case 'y':
     case 'Y':
+    case '%':
       break;
     case 's': // Seconds since UNIX epoch (midnight 1-jan-1970)
-      {
+    {
       // Build a time_t for UNIX epoch and substract from the input "timeT":
       struct tm tmUnixEpoch;
       memset(&tmUnixEpoch, 0, sizeof(tmUnixEpoch));
       tmUnixEpoch.tm_mday = 1;
-      tmUnixEpoch.tm_year = 1970-1900;
+      tmUnixEpoch.tm_year = 1970 - 1900;
 
       const time_t unixEpoch = this->CreateUtcTimeTFromTm(tmUnixEpoch);
-      if (unixEpoch == -1)
-        {
-        cmSystemTools::Error("Error generating UNIX epoch in "
-          "STRING(TIMESTAMP ...). Please, file a bug report aginst CMake");
+      if (unixEpoch == -1) {
+        cmSystemTools::Error(
+          "Error generating UNIX epoch in "
+          "STRING(TIMESTAMP ...). Please, file a bug report against CMake");
         return std::string();
-        }
+      }
 
-      std::stringstream ss;
-      ss << static_cast<long int>(difftime(timeT, unixEpoch));
-      return ss.str();
-      }
-    default:
-      {
-      return formatString;
-      }
+      return std::to_string(static_cast<long int>(difftime(timeT, unixEpoch)));
     }
+    default: {
+      return formatString;
+    }
+  }
 
   char buffer[16];
 
-  size_t size = strftime(buffer, sizeof(buffer),
-    formatString.c_str(), &timeStruct);
+  size_t size =
+    strftime(buffer, sizeof(buffer), formatString.c_str(), &timeStruct);
 
   return std::string(buffer, size);
 }

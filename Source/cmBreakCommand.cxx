@@ -1,27 +1,23 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmBreakCommand.h"
 
+#include <sstream>
+
+#include "cmExecutionStatus.h"
+#include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmPolicies.h"
+
 // cmBreakCommand
-bool cmBreakCommand::InitialPass(std::vector<std::string> const &args,
-                                  cmExecutionStatus &status)
+bool cmBreakCommand(std::vector<std::string> const& args,
+                    cmExecutionStatus& status)
 {
-  if(!this->Makefile->IsLoopBlock())
-    {
+  if (!status.GetMakefile().IsLoopBlock()) {
     bool issueMessage = true;
     std::ostringstream e;
-    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
-    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0055))
-      {
+    MessageType messageType = MessageType::AUTHOR_WARNING;
+    switch (status.GetMakefile().GetPolicyStatus(cmPolicies::CMP0055)) {
       case cmPolicies::WARN:
         e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0055) << "\n";
         break;
@@ -31,31 +27,27 @@ bool cmBreakCommand::InitialPass(std::vector<std::string> const &args,
       case cmPolicies::REQUIRED_ALWAYS:
       case cmPolicies::REQUIRED_IF_USED:
       case cmPolicies::NEW:
-        messageType = cmake::FATAL_ERROR;
+        messageType = MessageType::FATAL_ERROR;
         break;
-      }
+    }
 
-    if(issueMessage)
-      {
+    if (issueMessage) {
       e << "A BREAK command was found outside of a proper "
            "FOREACH or WHILE loop scope.";
-      this->Makefile->IssueMessage(messageType, e.str());
-       if(messageType == cmake::FATAL_ERROR)
-        {
+      status.GetMakefile().IssueMessage(messageType, e.str());
+      if (messageType == MessageType::FATAL_ERROR) {
         return false;
-        }
       }
     }
+  }
 
-  status.SetBreakInvoked(true);
+  status.SetBreakInvoked();
 
-  if(!args.empty())
-    {
+  if (!args.empty()) {
     bool issueMessage = true;
     std::ostringstream e;
-    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
-    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0055))
-      {
+    MessageType messageType = MessageType::AUTHOR_WARNING;
+    switch (status.GetMakefile().GetPolicyStatus(cmPolicies::CMP0055)) {
       case cmPolicies::WARN:
         e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0055) << "\n";
         break;
@@ -65,21 +57,18 @@ bool cmBreakCommand::InitialPass(std::vector<std::string> const &args,
       case cmPolicies::REQUIRED_ALWAYS:
       case cmPolicies::REQUIRED_IF_USED:
       case cmPolicies::NEW:
-        messageType = cmake::FATAL_ERROR;
+        messageType = MessageType::FATAL_ERROR;
         break;
-      }
+    }
 
-    if(issueMessage)
-      {
+    if (issueMessage) {
       e << "The BREAK command does not accept any arguments.";
-      this->Makefile->IssueMessage(messageType, e.str());
-       if(messageType == cmake::FATAL_ERROR)
-        {
+      status.GetMakefile().IssueMessage(messageType, e.str());
+      if (messageType == MessageType::FATAL_ERROR) {
         return false;
-        }
       }
     }
+  }
 
   return true;
 }
-

@@ -19,7 +19,6 @@ AddCMakeTest(GetFilenameComponentRealpath "")
 AddCMakeTest(Version "")
 AddCMakeTest(Message "")
 AddCMakeTest(File "")
-AddCMakeTest(SeparateArguments "")
 AddCMakeTest(ImplicitLinkInfo "")
 AddCMakeTest(ModuleNotices "")
 AddCMakeTest(GetProperty "")
@@ -34,8 +33,9 @@ AddCMakeTest(While "")
 AddCMakeTest(CMakeHostSystemInformation "")
 
 AddCMakeTest(FileDownload "")
-set_property(TEST CMake.FileDownload PROPERTY
+set_tests_properties(CMake.FileDownload PROPERTIES
   PASS_REGULAR_EXPRESSION "file already exists with expected MD5 sum"
+  FAIL_REGULAR_EXPRESSION "Unexpected status"
   )
 AddCMakeTest(FileDownloadBadHash "")
 set_property(TEST CMake.FileDownloadBadHash PROPERTY
@@ -53,10 +53,7 @@ set(EndStuff_PreArgs
   )
 AddCMakeTest(EndStuff "${EndStuff_PreArgs}")
 
-set(GetPrerequisites_PreArgs
-  "-DCTEST_CONFIGURATION_TYPE:STRING=\\\${CTEST_CONFIGURATION_TYPE}"
-  )
-AddCMakeTest(GetPrerequisites "${GetPrerequisites_PreArgs}")
+AddCMakeTest(GetPrerequisites "-DConfiguration:STRING=$<CONFIGURATION>")
 
 if(GIT_EXECUTABLE)
   set(PolicyCheck_PreArgs

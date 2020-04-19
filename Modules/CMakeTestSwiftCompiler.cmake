@@ -1,16 +1,5 @@
-
-#=============================================================================
-# Copyright 2003-2015 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
 if(CMAKE_Swift_COMPILER_FORCED)
   # The compiler configuration was forced by the user.
@@ -26,14 +15,13 @@ include(CMakeTestCompilerCommon)
 unset(CMAKE_Swift_COMPILER_WORKS CACHE)
 
 # This file is used by EnableLanguage in cmGlobalGenerator to
-# determine that that selected C++ compiler can actually compile
+# determine that the selected C++ compiler can actually compile
 # and link the most basic of programs.   If not, a fatal error
 # is set and cmake stops processing commands and will not generate
 # any makefiles or projects.
 if(NOT CMAKE_Swift_COMPILER_WORKS)
-  PrintTestCompilerStatus("Swift" "")
+  PrintTestCompilerStatus("Swift")
   file(WRITE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.swift
-    "import Foundation\n"
     "print(\"CMake\")\n")
   try_compile(CMAKE_Swift_COMPILER_WORKS ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.swift
@@ -45,21 +33,32 @@ if(NOT CMAKE_Swift_COMPILER_WORKS)
 endif()
 
 if(NOT CMAKE_Swift_COMPILER_WORKS)
-  PrintTestCompilerStatus("Swift" " -- broken")
+  PrintTestCompilerResult(CHECK_FAIL "broken")
   file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
     "Determining if the Swift compiler works failed with "
     "the following output:\n${__CMAKE_Swift_COMPILER_OUTPUT}\n\n")
-  message(FATAL_ERROR "The Swift compiler \"${CMAKE_Swift_COMPILER}\" "
+  string(REPLACE "\n" "\n  " _output "${__CMAKE_Swift_COMPILER_OUTPUT}")
+  message(FATAL_ERROR "The Swift compiler\n  \"${CMAKE_Swift_COMPILER}\"\n"
     "is not able to compile a simple test program.\nIt fails "
-    "with the following output:\n ${__CMAKE_Swift_COMPILER_OUTPUT}\n\n"
+    "with the following output:\n  ${_output}\n\n"
     "CMake will not be able to correctly generate this project.")
 else()
   if(Swift_TEST_WAS_RUN)
-    PrintTestCompilerStatus("Swift" " -- works")
+    PrintTestCompilerResult(CHECK_PASS "works")
     file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
       "Determining if the Swift compiler works passed with "
       "the following output:\n${__CMAKE_Swift_COMPILER_OUTPUT}\n\n")
   endif()
+
+  # Unlike C and CXX we do not yet detect any information about the Swift ABI.
+  # However, one of the steps done for C and CXX as part of that detection is
+  # to initialize the implicit include directories.  That is relevant here.
+  set(CMAKE_Swift_IMPLICIT_INCLUDE_DIRECTORIES "${_CMAKE_Swift_IMPLICIT_INCLUDE_DIRECTORIES_INIT}")
+
+  # Re-configure to save learned information.
+  configure_file(${CMAKE_ROOT}/Modules/CMakeSwiftCompiler.cmake.in
+                 ${CMAKE_PLATFORM_INFO_DIR}/CMakeSwiftCompiler.cmake @ONLY)
+  include(${CMAKE_PLATFORM_INFO_DIR}/CMakeSwiftCompiler.cmake)
 endif()
 
 unset(__CMAKE_Swift_COMPILER_OUTPUT)

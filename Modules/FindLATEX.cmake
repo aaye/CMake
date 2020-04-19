@@ -1,67 +1,57 @@
-#.rst:
-# FindLATEX
-# ---------
-#
-# Find Latex
-#
-# This module finds an installed Latex and determines the location
-# of the compiler.  Additionally the module looks for Latex-related
-# software like BibTeX.
-#
-# This module sets the following result variables::
-#
-#   LATEX_FOUND:          whether found Latex and requested components
-#   LATEX_<component>_FOUND:  whether found <component>
-#   LATEX_COMPILER:       path to the LaTeX compiler
-#   PDFLATEX_COMPILER:    path to the PdfLaTeX compiler
-#   XELATEX_COMPILER:     path to the XeLaTeX compiler
-#   LUALATEX_COMPILER:    path to the LuaLaTeX compiler
-#   BIBTEX_COMPILER:      path to the BibTeX compiler
-#   BIBER_COMPILER:       path to the Biber compiler
-#   MAKEINDEX_COMPILER:   path to the MakeIndex compiler
-#   XINDY_COMPILER:       path to the xindy compiler
-#   DVIPS_CONVERTER:      path to the DVIPS converter
-#   DVIPDF_CONVERTER:     path to the DVIPDF converter
-#   PS2PDF_CONVERTER:     path to the PS2PDF converter
-#   PDFTOPS_CONVERTER:    path to the pdftops converter
-#   LATEX2HTML_CONVERTER: path to the LaTeX2Html converter
-#   HTLATEX_COMPILER:     path to the htlatex compiler
-#
-# Possible components are::
-#
-#   PDFLATEX
-#   XELATEX
-#   LUALATEX
-#   BIBTEX
-#   BIBER
-#   MAKEINDEX
-#   XINDY
-#   DVIPS
-#   DVIPDF
-#   PS2PDF
-#   PDFTOPS
-#   LATEX2HTML
-#   HTLATEX
-#
-# Example Usages::
-#
-#   find_package(LATEX)
-#   find_package(LATEX COMPONENTS PDFLATEX)
-#   find_package(LATEX COMPONENTS BIBTEX PS2PDF)
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2002-2015 Kitware, Inc.
-# Copyright 2014-2015 Christoph Grüninger <foss@grueninger.de>
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindLATEX
+---------
+
+Find LaTeX
+
+This module finds an installed LaTeX and determines the location
+of the compiler.  Additionally the module looks for Latex-related
+software like BibTeX.
+
+This module sets the following result variables::
+
+  LATEX_FOUND:          whether found Latex and requested components
+  LATEX_<component>_FOUND:  whether found <component>
+  LATEX_COMPILER:       path to the LaTeX compiler
+  PDFLATEX_COMPILER:    path to the PdfLaTeX compiler
+  XELATEX_COMPILER:     path to the XeLaTeX compiler
+  LUALATEX_COMPILER:    path to the LuaLaTeX compiler
+  BIBTEX_COMPILER:      path to the BibTeX compiler
+  BIBER_COMPILER:       path to the Biber compiler
+  MAKEINDEX_COMPILER:   path to the MakeIndex compiler
+  XINDY_COMPILER:       path to the xindy compiler
+  DVIPS_CONVERTER:      path to the DVIPS converter
+  DVIPDF_CONVERTER:     path to the DVIPDF converter
+  PS2PDF_CONVERTER:     path to the PS2PDF converter
+  PDFTOPS_CONVERTER:    path to the pdftops converter
+  LATEX2HTML_CONVERTER: path to the LaTeX2Html converter
+  HTLATEX_COMPILER:     path to the htlatex compiler
+
+Possible components are::
+
+  PDFLATEX
+  XELATEX
+  LUALATEX
+  BIBTEX
+  BIBER
+  MAKEINDEX
+  XINDY
+  DVIPS
+  DVIPDF
+  PS2PDF
+  PDFTOPS
+  LATEX2HTML
+  HTLATEX
+
+Example Usages::
+
+  find_package(LATEX)
+  find_package(LATEX COMPONENTS PDFLATEX)
+  find_package(LATEX COMPONENTS BIBTEX PS2PDF)
+#]=======================================================================]
 
 if (WIN32)
   # Try to find the MikTex binary path (look for its package manager).
@@ -181,7 +171,7 @@ find_program(XINDY_COMPILER
         /usr/bin
 )
 if (XINDY_COMPILER)
-   set(LATEX_XINDY_FOUND TRUE)
+  set(LATEX_XINDY_FOUND TRUE)
 else()
   set(LATEX_XINDY_FOUND FALSE)
 endif()
@@ -282,7 +272,6 @@ mark_as_advanced(
   HTLATEX_COMPILER
 )
 
-# handle variables for found Latex and its components
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package_handle_standard_args(LATEX
   REQUIRED_VARS LATEX_COMPILER

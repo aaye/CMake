@@ -15,9 +15,14 @@ if(NOT CMAKE_PLATFORM_RUNTIME_PATH)
          "${LDCONFIG_HINTS}")
 endif()
 
+# OpenBSD requires -z origin to enable $ORIGIN expansion in RPATH.
+# This is not required for NetBSD.
+set(CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG "-Wl,-z,origin,-rpath,")
+
 set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_OPENBSD_VERSIONING 1)
 
 # OpenBSD has no multilib
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB32_PATHS FALSE)
 set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS FALSE)
 
 # OpenBSD policy requires that shared libraries be installed without

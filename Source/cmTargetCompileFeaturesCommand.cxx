@@ -1,64 +1,55 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2013 Stephen Kelly <steveire@gmail.com>
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTargetCompileFeaturesCommand.h"
 
-#include "cmAlgorithms.h"
+#include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmStringAlgorithms.h"
+#include "cmTargetPropCommandBase.h"
 
-bool cmTargetCompileFeaturesCommand::InitialPass(
-  std::vector<std::string> const& args,
-  cmExecutionStatus &)
-{
-  return this->HandleArguments(args, "COMPILE_FEATURES", NO_FLAGS);
-}
+class cmTarget;
 
-void cmTargetCompileFeaturesCommand
-::HandleImportedTarget(const std::string &tgt)
-{
-  std::ostringstream e;
-  e << "Cannot specify compile features for imported target \""
-    << tgt << "\".";
-  this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-}
+namespace {
 
-void cmTargetCompileFeaturesCommand
-::HandleMissingTarget(const std::string &name)
+class TargetCompileFeaturesImpl : public cmTargetPropCommandBase
 {
-  std::ostringstream e;
-  e << "Cannot specify compile features for target \"" << name << "\" "
-       "which is not built by this project.";
-  this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-}
+public:
+  using cmTargetPropCommandBase::cmTargetPropCommandBase;
 
-//----------------------------------------------------------------------------
-std::string cmTargetCompileFeaturesCommand
-::Join(const std::vector<std::string> &content)
-{
-  return cmJoin(content, ";");
-}
+private:
+  void HandleMissingTarget(const std::string& name) override
+  {
+    this->Makefile->IssueMessage(
+      MessageType::FATAL_ERROR,
+      cmStrCat("Cannot specify compile features for target \"", name,
+               "\" which is not built by this project."));
+  }
 
-//----------------------------------------------------------------------------
-bool cmTargetCompileFeaturesCommand
-::HandleDirectContent(cmTarget *tgt, const std::vector<std::string> &content,
-                                   bool, bool)
-{
-  for(std::vector<std::string>::const_iterator it = content.begin();
-    it != content.end(); ++it)
-    {
-    std::string error;
-    if(!this->Makefile->AddRequiredTargetFeature(tgt, *it, &error))
-      {
-      this->SetError(error);
-      return false;
+  bool HandleDirectContent(cmTarget* tgt,
+                           const std::vector<std::string>& content,
+                           bool /*prepend*/, bool /*system*/) override
+  {
+    for (std::string const& it : content) {
+      std::string error;
+      if (!this->Makefile->AddRequiredTargetFeature(tgt, it, &error)) {
+        this->SetError(error);
+        return false; // Not (successfully) handled.
       }
     }
-  return true;
+    return true; // Successfully handled.
+  }
+
+  std::string Join(const std::vector<std::string>& content) override
+  {
+    return cmJoin(content, ";");
+  }
+};
+
+} // namespace
+
+bool cmTargetCompileFeaturesCommand(std::vector<std::string> const& args,
+                                    cmExecutionStatus& status)
+{
+  return TargetCompileFeaturesImpl(status).HandleArguments(args,
+                                                           "COMPILE_FEATURES");
 }

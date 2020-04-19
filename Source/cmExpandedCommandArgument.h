@@ -1,18 +1,11 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2014 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmExpandedCommandArgument_h
 #define cmExpandedCommandArgument_h
 
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
 
 /** \class cmExpandedCommandArgument
  * \brief Represents an expanded command argument
@@ -25,13 +18,14 @@ class cmExpandedCommandArgument
 {
 public:
   cmExpandedCommandArgument();
-  cmExpandedCommandArgument(std::string const& value, bool quoted);
+  cmExpandedCommandArgument(std::string value, bool quoted);
 
   std::string const& GetValue() const;
 
   bool WasQuoted() const;
 
-  bool operator== (std::string const& value) const;
+  bool operator==(const char* value) const;
+  bool operator==(std::string const& value) const;
 
   bool empty() const;
 
@@ -39,7 +33,7 @@ public:
 
 private:
   std::string Value;
-  bool Quoted;
+  bool Quoted = false;
 };
 
 #endif

@@ -31,6 +31,20 @@
 #include "archive.h"
 #include "archive_hmac_private.h"
 
+/*
+ * On systems that do not support any recognized crypto libraries,
+ * the archive_hmac.c file is expected to define no usable symbols.
+ *
+ * But some compilers and linkers choke on empty object files, so
+ * define a public symbol that will always exist.  This could
+ * be removed someday if this file gains another always-present
+ * symbol definition.
+ */
+int __libarchive_hmac_build_hack(void) {
+	return 0;
+}
+
+
 #ifdef ARCHIVE_HMAC_USE_Apple_CommonCrypto
 
 static int
@@ -62,9 +76,16 @@ __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 
 #elif defined(_WIN32) && !defined(__CYGWIN__) && defined(HAVE_BCRYPT_H)
 
+#ifndef BCRYPT_HASH_REUSABLE_FLAG
+# define BCRYPT_HASH_REUSABLE_FLAG 0x00000020
+#endif
+
 static int
 __hmac_sha1_init(archive_hmac_sha1_ctx *ctx, const uint8_t *key, size_t key_len)
 {
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
 	BCRYPT_ALG_HANDLE hAlg;
 	BCRYPT_HASH_HANDLE hHash;
 	DWORD hash_len;
@@ -129,7 +150,54 @@ __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 	}
 }
 
-#elif defined(HAVE_LIBNETTLE)
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_MD_H)
+
+static int
+__hmac_sha1_init(archive_hmac_sha1_ctx *ctx, const uint8_t *key, size_t key_len)
+{
+        const mbedtls_md_info_t *info;
+        int ret;
+
+        mbedtls_md_init(ctx);
+        info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+        if (info == NULL) {
+                mbedtls_md_free(ctx);
+                return (-1);
+        }
+        ret = mbedtls_md_setup(ctx, info, 1);
+        if (ret != 0) {
+                mbedtls_md_free(ctx);
+                return (-1);
+        }
+	ret = mbedtls_md_hmac_starts(ctx, key, key_len);
+	if (ret != 0) {
+		mbedtls_md_free(ctx);
+		return (-1);
+	}
+	return 0;
+}
+
+static void
+__hmac_sha1_update(archive_hmac_sha1_ctx *ctx, const uint8_t *data,
+    size_t data_len)
+{
+	mbedtls_md_hmac_update(ctx, data, data_len);
+}
+
+static void __hmac_sha1_final(archive_hmac_sha1_ctx *ctx, uint8_t *out, size_t *out_len)
+{
+	(void)out_len;	/* UNUSED */
+
+	mbedtls_md_hmac_finish(ctx, out);
+}
+
+static void __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
+{
+	mbedtls_md_free(ctx);
+	memset(ctx, 0, sizeof(*ctx));
+}
+
+#elif defined(HAVE_LIBNETTLE) && defined(HAVE_NETTLE_HMAC_H)
 
 static int
 __hmac_sha1_init(archive_hmac_sha1_ctx *ctx, const uint8_t *key, size_t key_len)
@@ -162,8 +230,10 @@ __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 static int
 __hmac_sha1_init(archive_hmac_sha1_ctx *ctx, const uint8_t *key, size_t key_len)
 {
-	HMAC_CTX_init(ctx);
-	HMAC_Init(ctx, key, key_len, EVP_sha1());
+	*ctx = HMAC_CTX_new();
+	if (*ctx == NULL)
+		return -1;
+	HMAC_Init_ex(*ctx, key, key_len, EVP_sha1(), NULL);
 	return 0;
 }
 
@@ -171,22 +241,23 @@ static void
 __hmac_sha1_update(archive_hmac_sha1_ctx *ctx, const uint8_t *data,
     size_t data_len)
 {
-	HMAC_Update(ctx, data, data_len);
+	HMAC_Update(*ctx, data, data_len);
 }
 
 static void
 __hmac_sha1_final(archive_hmac_sha1_ctx *ctx, uint8_t *out, size_t *out_len)
 {
 	unsigned int len = (unsigned int)*out_len;
-	HMAC_Final(ctx, out, &len);
+
+	HMAC_Final(*ctx, out, &len);
 	*out_len = len;
 }
 
 static void
 __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 {
-	HMAC_CTX_cleanup(ctx);
-	memset(ctx, 0, sizeof(*ctx));
+	HMAC_CTX_free(*ctx);
+	*ctx = NULL;
 }
 
 #else

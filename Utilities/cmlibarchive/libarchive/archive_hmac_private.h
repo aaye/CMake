@@ -23,12 +23,22 @@
 * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifndef ARCHIVE_HMAC_PRIVATE_H_INCLUDED
+#define ARCHIVE_HMAC_PRIVATE_H_INCLUDED
+
 #ifndef __LIBARCHIVE_BUILD
 #error This header is only to be used internally to libarchive.
 #endif
-
-#ifndef ARCHIVE_HMAC_PRIVATE_H_INCLUDED
-#define ARCHIVE_HMAC_PRIVATE_H_INCLUDED
+/*
+ * On systems that do not support any recognized crypto libraries,
+ * the archive_hmac.c file is expected to define no usable symbols.
+ *
+ * But some compilers and linkers choke on empty object files, so
+ * define a public symbol that will always exist.  This could
+ * be removed someday if this file gains another always-present
+ * symbol definition.
+ */
+int __libarchive_hmac_build_hack(void);
 
 #ifdef __APPLE__
 # include <AvailabilityMacros.h>
@@ -53,15 +63,20 @@ typedef struct {
 
 } archive_hmac_sha1_ctx;
 
-#elif defined(HAVE_LIBNETTLE)
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_MD_H)
+#include <mbedtls/md.h>
+
+typedef mbedtls_md_context_t archive_hmac_sha1_ctx;
+
+#elif defined(HAVE_LIBNETTLE) && defined(HAVE_NETTLE_HMAC_H)
 #include <nettle/hmac.h>
 
 typedef	struct hmac_sha1_ctx archive_hmac_sha1_ctx;
 
 #elif defined(HAVE_LIBCRYPTO)
-#include <openssl/hmac.h>
+#include "archive_openssl_hmac_private.h"
 
-typedef	HMAC_CTX archive_hmac_sha1_ctx;
+typedef	HMAC_CTX* archive_hmac_sha1_ctx;
 
 #else
 

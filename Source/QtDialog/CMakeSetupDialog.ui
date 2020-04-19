@@ -57,6 +57,9 @@
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
+       <property name="styleSheet">
+        <string notr="true">padding-left: 0</string>
+       </property>
        <property name="editable">
         <bool>true</bool>
        </property>
@@ -238,6 +241,13 @@
            </property>
           </widget>
          </item>
+          <item>
+            <widget class="QPushButton" name="OpenProjectButton">
+              <property name="text">
+                <string>Open &amp;Project</string>
+              </property>
+            </widget>
+          </item>
          <item>
           <widget class="QLabel" name="Generator">
            <property name="text">

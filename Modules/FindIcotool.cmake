@@ -1,30 +1,21 @@
-#.rst:
-# FindIcotool
-# -----------
-#
-# Find icotool
-#
-# This module looks for icotool.  This module defines the following
-# values:
-#
-# ::
-#
-#   ICOTOOL_EXECUTABLE: the full path to the icotool tool.
-#   ICOTOOL_FOUND: True if icotool has been found.
-#   ICOTOOL_VERSION_STRING: the version of icotool found.
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2012 Aleksey Avdeev <solo@altlinux.ru>
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+FindIcotool
+-----------
+
+Find icotool
+
+This module looks for icotool. Convert and create Win32 icon and cursor files.
+This module defines the following values:
+
+::
+
+  ICOTOOL_EXECUTABLE: the full path to the icotool tool.
+  ICOTOOL_FOUND: True if icotool has been found.
+  ICOTOOL_VERSION_STRING: the version of icotool found.
+#]=======================================================================]
 
 find_program(ICOTOOL_EXECUTABLE
   icotool
@@ -49,8 +40,6 @@ if(ICOTOOL_EXECUTABLE)
   unset(_icotool_version)
 endif()
 
-# handle the QUIETLY and REQUIRED arguments and set ICOTOOL_FOUND to TRUE if
-# all listed variables are TRUE
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(
   Icotool

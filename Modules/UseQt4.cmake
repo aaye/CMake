@@ -1,25 +1,16 @@
-#.rst:
-# UseQt4
-# ------
-#
-# Use Module for QT4
-#
-# Sets up C and C++ to use Qt 4.  It is assumed that FindQt.cmake has
-# already been loaded.  See FindQt.cmake for information on how to load
-# Qt 4 into your CMake project.
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
 
-#=============================================================================
-# Copyright 2005-2009 Kitware, Inc.
-#
-# Distributed under the OSI-approved BSD License (the "License");
-# see accompanying file Copyright.txt for details.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the License for more information.
-#=============================================================================
-# (To distribute this file outside of CMake, substitute the full
-#  License text for the above reference.)
+#[=======================================================================[.rst:
+UseQt4
+------
+
+Use Module for QT4
+
+Sets up C and C++ to use Qt 4.  It is assumed that :module:`FindQt` has
+already been loaded.  See :module:`FindQt` for information on how to load
+Qt 4 into your CMake project.
+#]=======================================================================]
 
 add_definitions(${QT_DEFINITIONS})
 set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS $<$<NOT:$<CONFIG:Debug>>:QT_NO_DEBUG>)
@@ -114,4 +105,3 @@ foreach(module QT3SUPPORT QTOPENGL QTASSISTANT QTDESIGNER QTMOTIF QTNSPLUGIN
   endif ()
 
 endforeach()
-

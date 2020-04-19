@@ -1,27 +1,25 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing for details.  */
 #ifndef cmLocalUnixMakefileGenerator3_h
 #define cmLocalUnixMakefileGenerator3_h
 
-#include "cmLocalCommonGenerator.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-// for cmDepends::DependencyVector
+#include <iosfwd>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "cmDepends.h"
+#include "cmLocalCommonGenerator.h"
 
 class cmCustomCommand;
 class cmCustomCommandGenerator;
-class cmDepends;
-class cmMakefileTargetGenerator;
-class cmSourceFile;
+class cmGeneratorTarget;
+class cmGlobalGenerator;
+class cmMakefile;
 
 /** \class cmLocalUnixMakefileGenerator3
  * \brief Write a LocalUnix makefiles.
@@ -33,26 +31,32 @@ class cmLocalUnixMakefileGenerator3 : public cmLocalCommonGenerator
 {
 public:
   cmLocalUnixMakefileGenerator3(cmGlobalGenerator* gg, cmMakefile* mf);
-  virtual ~cmLocalUnixMakefileGenerator3();
+  ~cmLocalUnixMakefileGenerator3() override;
 
-  virtual void ComputeHomeRelativeOutputPath();
+  std::string GetConfigName() const;
+
+  void ComputeHomeRelativeOutputPath() override;
 
   /**
    * Generate the makefile for this directory.
    */
-  virtual void Generate();
+  void Generate() override;
 
   // this returns the relative path between the HomeOutputDirectory and this
   // local generators StartOutputDirectory
-  const std::string &GetHomeRelativeOutputPath();
+  const std::string& GetHomeRelativeOutputPath();
+
+  /**
+   * Convert a file path to a Makefile target or dependency with
+   * escaping and quoting suitable for the generator's make tool.
+   */
+  std::string ConvertToMakefilePath(std::string const& path) const;
 
   // Write out a make rule
-  void WriteMakeRule(std::ostream& os,
-                     const char* comment,
+  void WriteMakeRule(std::ostream& os, const char* comment,
                      const std::string& target,
                      const std::vector<std::string>& depends,
-                     const std::vector<std::string>& commands,
-                     bool symbolic,
+                     const std::vector<std::string>& commands, bool symbolic,
                      bool in_help = false);
 
   // write the main variables used by the makefiles
@@ -68,17 +72,18 @@ public:
    * extra level of escapes.
    */
   void SetMakeCommandEscapeTargetTwice(bool b)
-    { this->MakeCommandEscapeTargetTwice = b; }
+  {
+    this->MakeCommandEscapeTargetTwice = b;
+  }
 
   /**
    * Set whether the Borland curly brace command line hack should be
    * applied.
    */
-  void SetBorlandMakeCurlyHack(bool b)
-    { this->BorlandMakeCurlyHack = b; }
+  void SetBorlandMakeCurlyHack(bool b) { this->BorlandMakeCurlyHack = b; }
 
   // used in writing out Cmake files such as WriteDirectoryInformation
-  static void WriteCMakeArgument(std::ostream& os, const char* s);
+  static void WriteCMakeArgument(std::ostream& os, const std::string& s);
 
   /** creates the common disclaimer text at the top of each makefile */
   void WriteDisclaimer(std::ostream& os);
@@ -87,32 +92,44 @@ public:
   void WriteDivider(std::ostream& os);
 
   /** used to create a recursive make call */
-  std::string GetRecursiveMakeCall(const char *makefile,
+  std::string GetRecursiveMakeCall(const std::string& makefile,
                                    const std::string& tgt);
 
   // append flags to a string
-  virtual void AppendFlags(std::string& flags, const std::string& newFlags);
-  virtual void AppendFlags(std::string& flags, const char* newFlags);
+  void AppendFlags(std::string& flags,
+                   const std::string& newFlags) const override;
+  using cmLocalCommonGenerator::AppendFlags;
 
   // append an echo command
-  enum EchoColor { EchoNormal, EchoDepend, EchoBuild, EchoLink,
-                   EchoGenerate, EchoGlobal };
-  struct EchoProgress { std::string Dir; std::string Arg; };
+  enum EchoColor
+  {
+    EchoNormal,
+    EchoDepend,
+    EchoBuild,
+    EchoLink,
+    EchoGenerate,
+    EchoGlobal
+  };
+  struct EchoProgress
+  {
+    std::string Dir;
+    std::string Arg;
+  };
   void AppendEcho(std::vector<std::string>& commands, std::string const& text,
-                  EchoColor color = EchoNormal, EchoProgress const* = 0);
+                  EchoColor color = EchoNormal, EchoProgress const* = nullptr);
 
   /** Get whether the makefile is to have color.  */
   bool GetColorMakefile() const { return this->ColorMakefile; }
 
-  virtual
-  std::string GetTargetDirectory(cmGeneratorTarget const* target) const;
+  std::string GetTargetDirectory(
+    cmGeneratorTarget const* target) const override;
 
-    // create a command that cds to the start dir then runs the commands
+  // create a command that cds to the start dir then runs the commands
   void CreateCDCommand(std::vector<std::string>& commands,
-                       const char *targetDir,
-                       cmLocalGenerator::RelativeRoot returnDir);
+                       std::string const& targetDir,
+                       std::string const& relDir);
 
-  static std::string ConvertToQuotedOutputPath(const char* p,
+  static std::string ConvertToQuotedOutputPath(const std::string& p,
                                                bool useWatcomQuote);
 
   std::string CreateMakeVariable(const std::string& sin,
@@ -120,32 +137,38 @@ public:
 
   /** Called from command-line hook to bring dependencies up to date
       for a target.  */
-  virtual bool UpdateDependencies(const char* tgtInfo,
-                                  bool verbose, bool color);
+  bool UpdateDependencies(const std::string& tgtInfo, bool verbose,
+                          bool color) override;
 
   /** Called from command-line hook to clear dependencies.  */
-  virtual void ClearDependencies(cmMakefile* mf, bool verbose);
+  void ClearDependencies(cmMakefile* mf, bool verbose) override;
 
   /** write some extra rules such as make test etc */
   void WriteSpecialTargetsTop(std::ostream& makefileStream);
   void WriteSpecialTargetsBottom(std::ostream& makefileStream);
 
-  std::string GetRelativeTargetDirectory(cmGeneratorTarget* target);
+  std::string GetRelativeTargetDirectory(
+    cmGeneratorTarget const* target) const;
 
   // File pairs for implicit dependency scanning.  The key of the map
   // is the depender and the value is the explicit dependee.
-  struct ImplicitDependFileMap:
-    public std::map<std::string, cmDepends::DependencyVector> {};
-  struct ImplicitDependLanguageMap:
-    public std::map<std::string, ImplicitDependFileMap> {};
-  struct ImplicitDependTargetMap:
-    public std::map<std::string, ImplicitDependLanguageMap> {};
-  ImplicitDependLanguageMap const&
-  GetImplicitDepends(cmGeneratorTarget const* tgt);
+  struct ImplicitDependFileMap : public cmDepends::DependencyMap
+  {
+  };
+  struct ImplicitDependLanguageMap
+    : public std::map<std::string, ImplicitDependFileMap>
+  {
+  };
+  struct ImplicitDependTargetMap
+    : public std::map<std::string, ImplicitDependLanguageMap>
+  {
+  };
+  ImplicitDependLanguageMap const& GetImplicitDepends(
+    cmGeneratorTarget const* tgt);
 
   void AddImplicitDepends(cmGeneratorTarget const* tgt,
-                          const std::string& lang,
-                          const char* obj, const char* src);
+                          const std::string& lang, const std::string& obj,
+                          const std::string& src);
 
   // write the target rules for the local Makefile into the stream
   void WriteLocalAllRules(std::ostream& ruleFileStream);
@@ -156,13 +179,13 @@ public:
       assembly sources.  This could be converted to a variable lookup
       later.  */
   bool GetCreatePreprocessedSourceRules()
-    {
+  {
     return !this->SkipPreprocessedSourceRules;
-    }
+  }
   bool GetCreateAssemblySourceRules()
-    {
+  {
     return !this->SkipAssemblySourceRules;
-    }
+  }
 
   // Fill the vector with the target names for the object files,
   // preprocessed files and assembly files. Currently only used by the
@@ -172,39 +195,24 @@ public:
 protected:
   void WriteLocalMakefile();
 
-
   // write the target rules for the local Makefile into the stream
   void WriteLocalMakefileTargets(std::ostream& ruleFileStream,
-                                 std::set<std::string> &emitted);
+                                 std::set<std::string>& emitted);
 
   // this method Writes the Directory information files
   void WriteDirectoryInformationFile();
 
-
   // write the depend info
   void WriteDependLanguageInfo(std::ostream& cmakefileStream,
-                               cmGeneratorTarget *tgt);
-
-  // write the local help rule
-  void WriteHelpRule(std::ostream& ruleFileStream);
+                               cmGeneratorTarget* tgt);
 
   // this converts a file name that is relative to the StartOuputDirectory
   // into a full path
   std::string ConvertToFullPath(const std::string& localPath);
 
-
   void WriteConvenienceRule(std::ostream& ruleFileStream,
                             const std::string& realTarget,
                             const std::string& helpTarget);
-
-  void WriteTargetDependRule(std::ostream& ruleFileStream,
-                             cmGeneratorTarget* target);
-  void WriteTargetCleanRule(std::ostream& ruleFileStream,
-                            cmGeneratorTarget* target,
-                            const std::vector<std::string>& files);
-  void WriteTargetRequiresRule(std::ostream& ruleFileStream,
-                               cmGeneratorTarget* target,
-                               const std::vector<std::string>& objects);
 
   void AppendRuleDepend(std::vector<std::string>& depends,
                         const char* ruleFileName);
@@ -217,32 +225,28 @@ protected:
   void AppendCustomCommands(std::vector<std::string>& commands,
                             const std::vector<cmCustomCommand>& ccs,
                             cmGeneratorTarget* target,
-                            cmLocalGenerator::RelativeRoot relative =
-                            cmLocalGenerator::HOME_OUTPUT);
+                            std::string const& relative);
   void AppendCustomCommand(std::vector<std::string>& commands,
                            cmCustomCommandGenerator const& ccg,
                            cmGeneratorTarget* target,
-                           bool echo_comment=false,
-                           cmLocalGenerator::RelativeRoot relative =
-                           cmLocalGenerator::HOME_OUTPUT,
-                           std::ostream* content = 0);
+                           std::string const& relative,
+                           bool echo_comment = false,
+                           std::ostream* content = nullptr);
   void AppendCleanCommand(std::vector<std::string>& commands,
-                          const std::vector<std::string>& files,
-                          cmGeneratorTarget* target, const char* filename =0);
+                          const std::set<std::string>& files,
+                          cmGeneratorTarget* target,
+                          const char* filename = nullptr);
+  void AppendDirectoryCleanCommand(std::vector<std::string>& commands);
 
-  // Helper methods for dependeny updates.
-  bool ScanDependencies(const char* targetDir,
-                std::map<std::string, cmDepends::DependencyVector>& validDeps);
+  // Helper methods for dependency updates.
+  bool ScanDependencies(std::string const& targetDir,
+                        std::string const& dependFile,
+                        std::string const& internalDependFile,
+                        cmDepends::DependencyMap& validDeps);
   void CheckMultipleOutputs(bool verbose);
 
 private:
-  std::string ConvertShellCommand(std::string const& cmd, RelativeRoot root);
-  std::string MakeLauncher(cmCustomCommandGenerator const& ccg,
-                           cmGeneratorTarget* target, RelativeRoot relative);
-
-  virtual void ComputeObjectFilenames(
-                        std::map<cmSourceFile const*, std::string>& mapping,
-                        cmGeneratorTarget const* gt = 0);
+  std::string MaybeConvertWatcomShellCommand(std::string const& cmd);
 
   friend class cmMakefileTargetGenerator;
   friend class cmMakefileExecutableTargetGenerator;
@@ -256,25 +260,27 @@ private:
 
   struct LocalObjectEntry
   {
-    cmGeneratorTarget* Target;
+    cmGeneratorTarget* Target = nullptr;
     std::string Language;
-    LocalObjectEntry(): Target(0), Language() {}
-    LocalObjectEntry(cmGeneratorTarget* t, const std::string& lang):
-      Target(t), Language(lang) {}
+    LocalObjectEntry() = default;
+    LocalObjectEntry(cmGeneratorTarget* t, std::string lang)
+      : Target(t)
+      , Language(std::move(lang))
+    {
+    }
   };
-  struct LocalObjectInfo: public std::vector<LocalObjectEntry>
+  struct LocalObjectInfo : public std::vector<LocalObjectEntry>
   {
-    bool HasSourceExtension;
-    bool HasPreprocessRule;
-    bool HasAssembleRule;
-    LocalObjectInfo():HasSourceExtension(false), HasPreprocessRule(false),
-                      HasAssembleRule(false) {}
+    bool HasSourceExtension = false;
+    bool HasPreprocessRule = false;
+    bool HasAssembleRule = false;
   };
   void GetLocalObjectFiles(
-                    std::map<std::string, LocalObjectInfo> &localObjectFiles);
+    std::map<std::string, LocalObjectInfo>& localObjectFiles);
 
   void WriteObjectConvenienceRule(std::ostream& ruleFileStream,
-                                  const char* comment, const char* output,
+                                  const char* comment,
+                                  const std::string& output,
                                   LocalObjectInfo const& info);
 
   std::vector<std::string> LocalHelp;

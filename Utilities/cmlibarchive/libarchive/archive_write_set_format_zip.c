@@ -57,6 +57,7 @@ __FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_zip.c 201168 20
 #include "archive_private.h"
 #include "archive_random_private.h"
 #include "archive_write_private.h"
+#include "archive_write_set_format_private.h"
 
 #ifndef HAVE_ZLIB_H
 #include "archive_crc32.h"
@@ -65,6 +66,9 @@ __FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_zip.c 201168 20
 #define ZIP_ENTRY_FLAG_ENCRYPTED	(1<<0)
 #define ZIP_ENTRY_FLAG_LENGTH_AT_END	(1<<3)
 #define ZIP_ENTRY_FLAG_UTF8_NAME	(1 << 11)
+
+#define ZIP_4GB_MAX ARCHIVE_LITERAL_LL(0xffffffff)
+#define ZIP_4GB_MAX_UNCOMPRESSED ARCHIVE_LITERAL_LL(0xff000000)
 
 enum compression {
 	COMPRESSION_UNSPECIFIED = -1,
@@ -523,8 +527,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 	/* Ignore types of entries that we don't support. */
 	type = archive_entry_filetype(entry);
 	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Filetype not supported");
+		__archive_write_entry_filetype_unsupported(
+		    &a->archive, entry, "zip");
 		return ARCHIVE_FAILED;
 	};
 
@@ -532,14 +536,13 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
 		/* Reject entries over 4GB. */
 		if (archive_entry_size_is_set(entry)
-		    && (archive_entry_size(entry) >
-			ARCHIVE_LITERAL_LL(0xffffffff))) {
+		    && (archive_entry_size(entry) > ZIP_4GB_MAX)) {
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    "Files > 4GB require Zip64 extensions");
 			return ARCHIVE_FAILED;
 		}
 		/* Reject entries if archive is > 4GB. */
-		if (zip->written_bytes > ARCHIVE_LITERAL_LL(0xffffffff)) {
+		if (zip->written_bytes > ZIP_4GB_MAX) {
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    "Archives > 4GB require Zip64 extensions");
 			return ARCHIVE_FAILED;
@@ -562,10 +565,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 	zip->entry_uses_zip64 = 0;
 	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
 	zip->entry_encryption = 0;
-	if (zip->entry != NULL) {
-		archive_entry_free(zip->entry);
-		zip->entry = NULL;
-	}
+	archive_entry_free(zip->entry);
+	zip->entry = NULL;
 
 	if (zip->cctx_valid)
 		archive_encrypto_aes_ctr_release(&zip->cctx);
@@ -590,7 +591,7 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 
 
 #if defined(_WIN32) && !defined(__CYGWIN__)
-	/* Make sure the path separators in pahtname, hardlink and symlink
+	/* Make sure the path separators in pathname, hardlink and symlink
 	 * are all slash '/', not the Windows path separator '\'. */
 	zip->entry = __la_win_entry_in_posix_pathseparator(entry);
 	if (zip->entry == entry)
@@ -727,10 +728,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 		 *    (compression might make file larger)
 		 */
 		if ((zip->flags & ZIP_FLAG_FORCE_ZIP64)
-		    || (zip->entry_uncompressed_size + additional_size >
-			ARCHIVE_LITERAL_LL(0xffffffff))
-		    || (zip->entry_uncompressed_size >
-			ARCHIVE_LITERAL_LL(0xff000000)
+		    || (zip->entry_uncompressed_size + additional_size > ZIP_4GB_MAX)
+		    || (zip->entry_uncompressed_size > ZIP_4GB_MAX_UNCOMPRESSED
 			&& zip->entry_compression != COMPRESSION_STORE)) {
 			zip->entry_uses_zip64 = 1;
 			version_needed = 45;
@@ -788,8 +787,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 		 * are included only if these are 0xffffffff;
 		 * THEREFORE these must be set this way, even if we
 		 * know one of them is smaller. */
-		archive_le32enc(local_header + 18, ARCHIVE_LITERAL_LL(0xffffffff));
-		archive_le32enc(local_header + 22, ARCHIVE_LITERAL_LL(0xffffffff));
+		archive_le32enc(local_header + 18, ZIP_4GB_MAX);
+		archive_le32enc(local_header + 22, ZIP_4GB_MAX);
 	} else {
 		archive_le32enc(local_header + 18, (uint32_t)zip->entry_compressed_size);
 		archive_le32enc(local_header + 22, (uint32_t)zip->entry_uncompressed_size);
@@ -878,7 +877,7 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 	        || zip->entry_encryption == ENCRYPTION_WINZIP_AES256)) {
 
 		memcpy(e, "\001\231\007\000\001\000AE", 8);
-		/* AES vendoer version AE-2 does not store a CRC.
+		/* AES vendor version AE-2 does not store a CRC.
 		 * WinZip 11 uses AE-1, which does store the CRC,
 		 * but it does not store the CRC when the file size
 		 * is less than 20 bytes. So we simulate what
@@ -1013,7 +1012,7 @@ archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
 	if (zip->entry_flags & ZIP_ENTRY_FLAG_ENCRYPTED) {
 		switch (zip->entry_encryption) {
 		case ENCRYPTION_TRADITIONAL:
-			/* Initialize traditoinal PKWARE encryption context. */
+			/* Initialize traditional PKWARE encryption context. */
 			if (!zip->tctx_valid) {
 				ret = init_traditional_pkware_encryption(a);
 				if (ret != ARCHIVE_OK)
@@ -1217,22 +1216,22 @@ archive_write_zip_finish_entry(struct archive_write *a)
 	}
 
 	/* Append Zip64 extra data to central directory information. */
-	if (zip->entry_compressed_written > ARCHIVE_LITERAL_LL(0xffffffff)
-	    || zip->entry_uncompressed_written > ARCHIVE_LITERAL_LL(0xffffffff)
-	    || zip->entry_offset > ARCHIVE_LITERAL_LL(0xffffffff)) {
+	if (zip->entry_compressed_written > ZIP_4GB_MAX
+	    || zip->entry_uncompressed_written > ZIP_4GB_MAX
+	    || zip->entry_offset > ZIP_4GB_MAX) {
 		unsigned char zip64[32];
 		unsigned char *z = zip64, *zd;
 		memcpy(z, "\001\000\000\000", 4);
 		z += 4;
-		if (zip->entry_uncompressed_written >= ARCHIVE_LITERAL_LL(0xffffffff)) {
+		if (zip->entry_uncompressed_written >= ZIP_4GB_MAX) {
 			archive_le64enc(z, zip->entry_uncompressed_written);
 			z += 8;
 		}
-		if (zip->entry_compressed_written >= ARCHIVE_LITERAL_LL(0xffffffff)) {
+		if (zip->entry_compressed_written >= ZIP_4GB_MAX) {
 			archive_le64enc(z, zip->entry_compressed_written);
 			z += 8;
 		}
-		if (zip->entry_offset >= ARCHIVE_LITERAL_LL(0xffffffff)) {
+		if (zip->entry_offset >= ZIP_4GB_MAX) {
 			archive_le64enc(z, zip->entry_offset);
 			z += 8;
 		}
@@ -1256,15 +1255,15 @@ archive_write_zip_finish_entry(struct archive_write *a)
 		archive_le32enc(zip->file_header + 16, zip->entry_crc32);
 	archive_le32enc(zip->file_header + 20,
 		(uint32_t)zipmin(zip->entry_compressed_written,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
+				 ZIP_4GB_MAX));
 	archive_le32enc(zip->file_header + 24,
 		(uint32_t)zipmin(zip->entry_uncompressed_written,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
+				 ZIP_4GB_MAX));
 	archive_le16enc(zip->file_header + 30,
 	    (uint16_t)(zip->central_directory_bytes - zip->file_header_extra_offset));
 	archive_le32enc(zip->file_header + 42,
 		(uint32_t)zipmin(zip->entry_offset,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
+				 ZIP_4GB_MAX));
 
 	return (ARCHIVE_OK);
 }
@@ -1291,8 +1290,8 @@ archive_write_zip_close(struct archive_write *a)
 	offset_end = zip->written_bytes;
 
 	/* If central dir info is too large, write Zip64 end-of-cd */
-	if (offset_end - offset_start > ARCHIVE_LITERAL_LL(0xffffffff)
-	    || offset_start > ARCHIVE_LITERAL_LL(0xffffffff)
+	if (offset_end - offset_start > ZIP_4GB_MAX
+	    || offset_start > ZIP_4GB_MAX
 	    || zip->central_directory_entries > 0xffffUL
 	    || (zip->flags & ZIP_FLAG_FORCE_ZIP64)) {
 	  /* Zip64 end-of-cd record */
@@ -1332,11 +1331,9 @@ archive_write_zip_close(struct archive_write *a)
 	archive_le16enc(buff + 10, (uint16_t)zipmin(0xffffU,
 		zip->central_directory_entries));
 	archive_le32enc(buff + 12,
-		(uint32_t)zipmin(ARCHIVE_LITERAL_LL(0xffffffff),
-				 (offset_end - offset_start)));
+		(uint32_t)zipmin(ZIP_4GB_MAX, (offset_end - offset_start)));
 	archive_le32enc(buff + 16,
-		(uint32_t)zipmin(ARCHIVE_LITERAL_LL(0xffffffff),
-				 offset_start));
+		(uint32_t)zipmin(ZIP_4GB_MAX, offset_start));
 	ret = __archive_write_output(a, buff, 22);
 	if (ret != ARCHIVE_OK)
 		return (ARCHIVE_FATAL);
@@ -1376,10 +1373,28 @@ dos_time(const time_t unix_time)
 {
 	struct tm *t;
 	unsigned int dt;
+#if defined(HAVE_LOCALTIME_R) || defined(HAVE__LOCALTIME64_S)
+	struct tm tmbuf;
+#endif
+#if defined(HAVE__LOCALTIME64_S)
+	errno_t terr;
+	__time64_t tmptime;
+#endif
 
 	/* This will not preserve time when creating/extracting the archive
 	 * on two systems with different time zones. */
+#if defined(HAVE_LOCALTIME_R)
+	t = localtime_r(&unix_time, &tmbuf);
+#elif defined(HAVE__LOCALTIME64_S)
+	tmptime = unix_time;
+	terr = _localtime64_s(&tmbuf, &tmptime);
+	if (terr)
+		t = NULL;
+	else
+		t = &tmbuf;
+#else
 	t = localtime(&unix_time);
+#endif
 
 	/* MSDOS-style date/time is only between 1980-01-01 and 2107-12-31 */
 	if (t->tm_year < 1980 - 1900)
@@ -1406,18 +1421,17 @@ path_length(struct archive_entry *entry)
 {
 	mode_t type;
 	const char *path;
+	size_t len;
 
 	type = archive_entry_filetype(entry);
 	path = archive_entry_pathname(entry);
 
 	if (path == NULL)
 		return (0);
-	if (type == AE_IFDIR &&
-	    (path[0] == '\0' || path[strlen(path) - 1] != '/')) {
-		return strlen(path) + 1;
-	} else {
-		return strlen(path);
-	}
+	len = strlen(path);
+	if (type == AE_IFDIR && (path[0] == '\0' || path[len - 1] != '/'))
+		++len; /* Space for the trailing / */
+	return len;
 }
 
 static int
@@ -1431,6 +1445,9 @@ write_path(struct archive_entry *entry, struct archive_write *archive)
 	path = archive_entry_pathname(entry);
 	type = archive_entry_filetype(entry);
 	written_bytes = 0;
+
+	if (path == NULL)
+		return (ARCHIVE_FATAL);
 
 	ret = __archive_write_output(archive, path, strlen(path));
 	if (ret != ARCHIVE_OK)
@@ -1462,10 +1479,8 @@ copy_path(struct archive_entry *entry, unsigned char *p)
 	memcpy(p, path, pathlen);
 
 	/* Folders are recognized by a trailing slash. */
-	if ((type == AE_IFDIR) & (path[pathlen - 1] != '/')) {
+	if ((type == AE_IFDIR) && (path[pathlen - 1] != '/'))
 		p[pathlen] = '/';
-		p[pathlen + 1] = '\0';
-	}
 }
 
 
@@ -1501,7 +1516,7 @@ trad_enc_update_keys(struct trad_enc_ctx *ctx, uint8_t c)
 }
 
 static uint8_t
-trad_enc_decypt_byte(struct trad_enc_ctx *ctx)
+trad_enc_decrypt_byte(struct trad_enc_ctx *ctx)
 {
 	unsigned temp = ctx->keys[2] | 2;
 	return (uint8_t)((temp * (temp ^ 1)) >> 8) & 0xff;
@@ -1517,7 +1532,7 @@ trad_enc_encrypt_update(struct trad_enc_ctx *ctx, const uint8_t *in,
 
 	for (i = 0; i < max; i++) {
 		uint8_t t = in[i];
-		out[i] = t ^ trad_enc_decypt_byte(ctx);
+		out[i] = t ^ trad_enc_decrypt_byte(ctx);
 		trad_enc_update_keys(ctx, t);
 	}
 	return i;
@@ -1628,7 +1643,7 @@ init_winzip_aes_encryption(struct archive_write *a)
 		return (ARCHIVE_FAILED);
         }
 
-	/* Set a passowrd verification value after the 'salt'. */
+	/* Set a password verification value after the 'salt'. */
 	salt[salt_len] = derived_key[key_len * 2];
 	salt[salt_len + 1] = derived_key[key_len * 2 + 1];
 
