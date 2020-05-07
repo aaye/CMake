@@ -86,6 +86,7 @@ This module will set the following variables in your project
     * Anaconda
     * Canopy
     * IronPython
+    * PyPy
 ``Python2_STDLIB``
   Standard platform independent installation directory.
 
@@ -139,6 +140,8 @@ This module will set the following variables in your project
   Python 2 minor version.
 ``Python2_VERSION_PATCH``
   Python 2 patch version.
+``Python2_PyPy_VERSION``
+  Python 2 PyPy version.
 ``Python2_NumPy_FOUND``
   System has the NumPy.
 ``Python2_NumPy_INCLUDE_DIRS``
@@ -217,6 +220,30 @@ Hints
     If the component ``Development`` is requested, it is **strongly**
     recommended to also include the component ``Interpreter`` to get expected
     result.
+
+``Python2_FIND_IMPLEMENTATIONS``
+  This variable defines, in an ordered list, the different implementations
+  which will be searched. The ``Python2_FIND_IMPLEMENTATIONS`` variable can
+  hold the following values:
+
+  * ``CPython``: this is the standard implementation. Various products, like
+    ``Anaconda`` or ``ActivePython``, rely on this implementation.
+  * ``IronPython``: This implementation use the ``CSharp`` language for
+    ``.NET Framework`` on top of the `Dynamic Language Runtime` (``DLR``).
+    See `IronPython <http://ironpython.net>`_.
+  * ``PyPy``: This implementation use ``RPython`` language and
+    ``RPython translation toolchain`` to produce the python interpreter.
+    See `PyPy <https://www.pypy.org>`_.
+
+  The default value is the list: ``CPython``, ``IronPython``.
+
+  .. note::
+
+    This hint has the lowest priority of all hints, so even if, for example,
+    you specify ``IronPython`` first and ``CPython`` in second, a python
+    product based on ``CPython`` can be selected because, for example with
+    ``Python2_FIND_STRATEGY=LOCATION``, each location will be search first for
+    ``IronPython`` and second for ``CPython``.
 
 Artifacts Specification
 ^^^^^^^^^^^^^^^^^^^^^^^

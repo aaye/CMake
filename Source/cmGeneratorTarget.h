@@ -31,6 +31,8 @@ class cmTarget;
 struct cmGeneratorExpressionContext;
 struct cmGeneratorExpressionDAGChecker;
 
+using cmProp = const std::string*;
+
 class cmGeneratorTarget
 {
 public:
@@ -76,9 +78,9 @@ public:
 
   std::vector<std::string> GetPropertyKeys() const;
   //! Might return a nullptr if the property is not set or invalid
-  const char* GetProperty(const std::string& prop) const;
+  cmProp GetProperty(const std::string& prop) const;
   //! Always returns a valid pointer
-  const char* GetSafeProperty(const std::string& prop) const;
+  std::string const& GetSafeProperty(std::string const& prop) const;
   bool GetPropertyAsBool(const std::string& prop) const;
   void GetSourceFiles(std::vector<cmSourceFile*>& files,
                       const std::string& config) const;
@@ -203,6 +205,24 @@ public:
     const std::string& p, const std::string& config) const;
   const char* GetLinkInterfaceDependentNumberMaxProperty(
     const std::string& p, const std::string& config) const;
+
+  class DeviceLinkSetter
+  {
+  public:
+    DeviceLinkSetter(cmGeneratorTarget& target)
+      : Target(target)
+    {
+      this->PreviousState = target.SetDeviceLink(true);
+    }
+    ~DeviceLinkSetter() { this->Target.SetDeviceLink(this->PreviousState); };
+
+  private:
+    cmGeneratorTarget& Target;
+    bool PreviousState;
+  };
+
+  bool SetDeviceLink(bool deviceLink);
+  bool IsDeviceLink() const { return this->DeviceLink; }
 
   cmLinkInterface const* GetLinkInterface(
     const std::string& config, const cmGeneratorTarget* headTarget) const;
@@ -829,6 +849,7 @@ private:
   mutable std::string LinkerLanguage;
   using LinkClosureMapType = std::map<std::string, LinkClosure>;
   mutable LinkClosureMapType LinkClosureMap;
+  bool DeviceLink = false;
 
   // Returns ARCHIVE, LIBRARY, or RUNTIME based on platform and type.
   const char* GetOutputTargetType(cmStateEnums::ArtifactType artifact) const;

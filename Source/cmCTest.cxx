@@ -19,6 +19,7 @@
 #include <cm/memory>
 #include <cm/string_view>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/Base64.h"
 #include "cmsys/Directory.hxx"
@@ -35,8 +36,6 @@
 #else
 #  include <unistd.h> // IWYU pragma: keep
 #endif
-
-#include "cm_static_string_view.hxx"
 
 #include "cmCTestBuildAndTestHandler.h"
 #include "cmCTestBuildHandler.h"
@@ -92,6 +91,7 @@ struct cmCTest::Private
   std::string ConfigType;
   std::string ScheduleType;
   std::chrono::system_clock::time_point StopTime;
+  bool StopOnFailure = false;
   bool TestProgressOutput = false;
   bool Verbose = false;
   bool ExtraVerbose = false;
@@ -1932,6 +1932,10 @@ bool cmCTest::HandleCommandLineArguments(size_t& i,
     this->SetStopTime(args[i]);
   }
 
+  else if (this->CheckArgument(arg, "--stop-on-failure"_s)) {
+    this->Impl->StopOnFailure = true;
+  }
+
   else if (this->CheckArgument(arg, "-C"_s, "--build-config") &&
            i < args.size() - 1) {
     i++;
@@ -2491,6 +2495,16 @@ void cmCTest::SetNotesFiles(const char* notes)
     return;
   }
   this->Impl->NotesFiles = notes;
+}
+
+bool cmCTest::GetStopOnFailure() const
+{
+  return this->Impl->StopOnFailure;
+}
+
+void cmCTest::SetStopOnFailure(bool stop)
+{
+  this->Impl->StopOnFailure = stop;
 }
 
 std::chrono::system_clock::time_point cmCTest::GetStopTime() const

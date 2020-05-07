@@ -15,12 +15,12 @@
 
 #include <cm/iterator>
 #include <cm/string_view>
+#include <cm/vector>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/RegularExpression.hxx"
 #include "cmsys/String.h"
-
-#include "cm_static_string_view.hxx"
 
 #include "cmAlgorithms.h"
 #include "cmGeneratorExpression.h"
@@ -919,9 +919,8 @@ static const struct ConfigurationTestNode : public cmGeneratorExpressionNode
         std::vector<std::string> mappedConfigs;
         std::string mapProp = cmStrCat(
           "MAP_IMPORTED_CONFIG_", cmSystemTools::UpperCase(context->Config));
-        if (const char* mapValue =
-              context->CurrentTarget->GetProperty(mapProp)) {
-          cmExpandList(cmSystemTools::UpperCase(mapValue), mappedConfigs);
+        if (cmProp mapValue = context->CurrentTarget->GetProperty(mapProp)) {
+          cmExpandList(cmSystemTools::UpperCase(*mapValue), mappedConfigs);
           return cm::contains(mappedConfigs,
                               cmSystemTools::UpperCase(parameters.front()))
             ? "1"
@@ -1187,6 +1186,70 @@ static const struct LinkLanguageAndIdNode : public cmGeneratorExpressionNode
   }
 } linkLanguageAndIdNode;
 
+static const struct HostLinkNode : public cmGeneratorExpressionNode
+{
+  HostLinkNode() {} // NOLINT(modernize-use-equals-default)
+
+  int NumExpectedParameters() const override { return ZeroOrMoreParameters; }
+
+  std::string Evaluate(
+    const std::vector<std::string>& parameters,
+    cmGeneratorExpressionContext* context,
+    const GeneratorExpressionContent* content,
+    cmGeneratorExpressionDAGChecker* dagChecker) const override
+  {
+    if (!context->HeadTarget || !dagChecker ||
+        !dagChecker->EvaluatingLinkOptionsExpression()) {
+      reportError(context, content->GetOriginalExpression(),
+                  "$<HOST_LINK:...> may only be used with binary targets "
+                  "to specify link options.");
+      return std::string();
+    }
+
+    return context->HeadTarget->IsDeviceLink() ? std::string()
+                                               : cmJoin(parameters, ";");
+  }
+} hostLinkNode;
+
+static const struct DeviceLinkNode : public cmGeneratorExpressionNode
+{
+  DeviceLinkNode() {} // NOLINT(modernize-use-equals-default)
+
+  int NumExpectedParameters() const override { return ZeroOrMoreParameters; }
+
+  std::string Evaluate(
+    const std::vector<std::string>& parameters,
+    cmGeneratorExpressionContext* context,
+    const GeneratorExpressionContent* content,
+    cmGeneratorExpressionDAGChecker* dagChecker) const override
+  {
+    if (!context->HeadTarget || !dagChecker ||
+        !dagChecker->EvaluatingLinkOptionsExpression()) {
+      reportError(context, content->GetOriginalExpression(),
+                  "$<DEVICE_LINK:...> may only be used with binary targets "
+                  "to specify link options.");
+      return std::string();
+    }
+
+    if (context->HeadTarget->IsDeviceLink()) {
+      std::vector<std::string> list;
+      cmExpandLists(parameters.begin(), parameters.end(), list);
+      const auto DL_BEGIN = "<DEVICE_LINK>"_s;
+      const auto DL_END = "</DEVICE_LINK>"_s;
+      cm::erase_if(list, [&](const std::string& item) {
+        return item == DL_BEGIN || item == DL_END;
+      });
+
+      list.insert(list.begin(), static_cast<std::string>(DL_BEGIN));
+      list.push_back(static_cast<std::string>(DL_END));
+
+      return cmJoin(list, ";");
+    }
+
+    return std::string();
+  }
+} deviceLinkNode;
+
 std::string getLinkedTargetsContent(
   cmGeneratorTarget const* target, std::string const& prop,
   cmGeneratorExpressionContext* context,
@@ -1304,6 +1367,7 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
           context, content->GetOriginalExpression(),
           "$<TARGET_PROPERTY:prop>  may only be used with binary targets.  "
           "It may not be used with add_custom_command or add_custom_target.  "
+          " "
           "Specify the target to read a property from using the "
           "$<TARGET_PROPERTY:tgt,prop> signature instead.");
         return std::string();
@@ -1418,8 +1482,8 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
 
     std::string result;
     bool haveProp = false;
-    if (const char* p = target->GetProperty(propertyName)) {
-      result = p;
+    if (cmProp p = target->GetProperty(propertyName)) {
+      result = *p;
       haveProp = true;
     } else if (evaluatingLinkLibraries) {
       return std::string();
@@ -1657,13 +1721,13 @@ static const struct CompileFeaturesNode : public cmGeneratorExpressionNode
     for (auto const& lit : testedFeatures) {
       std::vector<std::string> const& langAvailable =
         availableFeatures[lit.first];
-      const char* standardDefault = context->LG->GetMakefile()->GetDefinition(
+      cmProp standardDefault = context->LG->GetMakefile()->GetDef(
         "CMAKE_" + lit.first + "_STANDARD_DEFAULT");
       for (std::string const& it : lit.second) {
         if (!cm::contains(langAvailable, it)) {
           return "0";
         }
-        if (standardDefault && !*standardDefault) {
+        if (standardDefault && standardDefault->empty()) {
           // This compiler has no notion of language standard levels.
           // All features known for the language are always available.
           continue;
@@ -1671,12 +1735,12 @@ static const struct CompileFeaturesNode : public cmGeneratorExpressionNode
         if (!context->LG->GetMakefile()->HaveStandardAvailable(
               target->Target, lit.first, it)) {
           if (evalLL) {
-            const char* l = target->GetProperty(lit.first + "_STANDARD");
+            cmProp l = target->GetProperty(lit.first + "_STANDARD");
             if (!l) {
               l = standardDefault;
             }
             assert(l);
-            context->MaxLanguageStandard[target][lit.first] = l;
+            context->MaxLanguageStandard[target][lit.first] = *l;
           } else {
             return "0";
           }
@@ -2464,6 +2528,8 @@ const cmGeneratorExpressionNode* cmGeneratorExpressionNode::GetNode(
     { "COMPILE_LANGUAGE", &languageNode },
     { "LINK_LANG_AND_ID", &linkLanguageAndIdNode },
     { "LINK_LANGUAGE", &linkLanguageNode },
+    { "HOST_LINK", &hostLinkNode },
+    { "DEVICE_LINK", &deviceLinkNode },
     { "SHELL_PATH", &shellPathNode }
   };
 
